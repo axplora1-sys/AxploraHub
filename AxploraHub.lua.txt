@@ -1,1 +1,269 @@
-lol
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local pg = player:WaitForChild("PlayerGui")
+
+local Library = {}
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "AxploraUI"
+gui.ResetOnSpawn = false
+gui.Parent = pg
+
+-- MAIN WINDOW
+local win = Instance.new("Frame")
+win.Size = UDim2.new(0,620,0,460)
+win.Position = UDim2.new(0.5,-310,0.5,-230)
+win.BackgroundColor3 = Color3.fromRGB(25,25,25)
+win.BorderSizePixel = 0
+win.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0,12)
+corner.Parent = win
+
+-- TOPBAR
+local top = Instance.new("Frame")
+top.Size = UDim2.new(1,0,0,36)
+top.BackgroundColor3 = Color3.fromRGB(15,15,15)
+top.BorderSizePixel = 0
+top.Parent = win
+
+local title = Instance.new("TextLabel")
+title.Text = "Axplora Hub"
+title.Size = UDim2.new(1,0,1,0)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(192,38,211)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Position = UDim2.new(0,12,0,0)
+title.Parent = top
+
+-- CLOSE
+local close = Instance.new("TextButton")
+close.Text = "X"
+close.Size = UDim2.new(0,30,1,0)
+close.Position = UDim2.new(1,-30,0,0)
+close.BackgroundTransparency = 1
+close.TextColor3 = Color3.fromRGB(200,200,200)
+close.Font = Enum.Font.GothamBold
+close.TextSize = 14
+close.Parent = top
+
+close.MouseButton1Click:Connect(function()
+	gui:Destroy()
+end)
+
+-- MINIMIZE
+local mini = Instance.new("TextButton")
+mini.Text = "_"
+mini.Size = UDim2.new(0,30,1,0)
+mini.Position = UDim2.new(1,-60,0,0)
+mini.BackgroundTransparency = 1
+mini.TextColor3 = Color3.fromRGB(200,200,200)
+mini.Font = Enum.Font.GothamBold
+mini.TextSize = 16
+mini.Parent = top
+
+local minimized = false
+mini.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	for _,v in pairs(win:GetChildren()) do
+		if v ~= top then
+			v.Visible = not minimized
+		end
+	end
+end)
+
+-- SIDEBAR
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0,140,1,-36)
+sidebar.Position = UDim2.new(0,0,0,36)
+sidebar.BackgroundColor3 = Color3.fromRGB(18,18,18)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = win
+
+local sideCorner = Instance.new("UICorner")
+sideCorner.CornerRadius = UDim.new(0,10)
+sideCorner.Parent = sidebar
+
+local sideLayout = Instance.new("UIListLayout")
+sideLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sideLayout.Padding = UDim.new(0,4)
+sideLayout.Parent = sidebar
+
+local sidePadding = Instance.new("UIPadding")
+sidePadding.PaddingTop = UDim.new(0,8)
+sidePadding.PaddingLeft = UDim.new(0,8)
+sidePadding.PaddingRight = UDim.new(0,8)
+sidePadding.Parent = sidebar
+
+-- CONTENT AREA
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1,-140,1,-36)
+content.Position = UDim2.new(0,140,0,36)
+content.BackgroundTransparency = 1
+content.Parent = win
+
+-- TABS SYSTEM
+local tabs = {}
+local tabOrder = 0
+
+local function selectTab(index)
+	for i, t in pairs(tabs) do
+		t.page.Visible = (i == index)
+		if i == index then
+			t.btn.TextColor3 = Color3.fromRGB(192,38,211)
+			t.btn.BackgroundTransparency = 0.85
+			t.btn.BackgroundColor3 = Color3.fromRGB(192,38,211)
+		else
+			t.btn.TextColor3 = Color3.fromRGB(150,150,150)
+			t.btn.BackgroundTransparency = 1
+		end
+	end
+end
+
+-- ADD TAB FUNCTION
+function Library:AddTab(name)
+	tabOrder = tabOrder + 1
+	local order = tabOrder
+
+	-- Tab Button
+	local btn = Instance.new("TextButton")
+	btn.Text = name
+	btn.Size = UDim2.new(1,0,0,32)
+	btn.BackgroundColor3 = Color3.fromRGB(192,38,211)
+	btn.BackgroundTransparency = 1
+	btn.TextColor3 = Color3.fromRGB(150,150,150)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 12
+	btn.LayoutOrder = order
+	btn.Parent = sidebar
+
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0,6)
+	btnCorner.Parent = btn
+
+	-- Page
+	local page = Instance.new("ScrollingFrame")
+	page.Size = UDim2.new(1,0,1,0)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 3
+	page.ScrollBarImageColor3 = Color3.fromRGB(192,38,211)
+	page.Visible = false
+	page.Parent = content
+
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0,8)
+	layout.Parent = page
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0,12)
+	padding.PaddingLeft = UDim.new(0,12)
+	padding.PaddingRight = UDim.new(0,12)
+	padding.Parent = page
+
+	local tabIndex = #tabs + 1
+	tabs[tabIndex] = {btn = btn, page = page}
+
+	btn.MouseButton1Click:Connect(function()
+		selectTab(tabIndex)
+	end)
+
+	-- auto select first tab
+	if tabIndex == 1 then
+		selectTab(1)
+	end
+
+	-- Tab Object
+	local Tab = {}
+	local itemOrder = 0
+
+	function Tab:AddSection(text)
+		itemOrder = itemOrder + 1
+		local label = Instance.new("TextLabel")
+		label.Text = text
+		label.Size = UDim2.new(1,0,0,24)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.fromRGB(192,38,211)
+		label.Font = Enum.Font.GothamBold
+		label.TextSize = 13
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.LayoutOrder = itemOrder
+		label.Parent = page
+	end
+
+	function Tab:AddButton(text, callback)
+		itemOrder = itemOrder + 1
+		local btn2 = Instance.new("TextButton")
+		btn2.Text = text
+		btn2.Size = UDim2.new(1,0,0,32)
+		btn2.BackgroundColor3 = Color3.fromRGB(40,40,40)
+		btn2.BorderSizePixel = 0
+		btn2.TextColor3 = Color3.fromRGB(220,220,220)
+		btn2.Font = Enum.Font.GothamBold
+		btn2.TextSize = 12
+		btn2.LayoutOrder = itemOrder
+		btn2.Parent = page
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0,6)
+		c.Parent = btn2
+
+		btn2.MouseButton1Click:Connect(function()
+			if callback then callback() end
+		end)
+	end
+
+	function Tab:AddToggle(text, default, callback)
+		itemOrder = itemOrder + 1
+		local state = default or false
+
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.new(1,0,0,32)
+		frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+		frame.BorderSizePixel = 0
+		frame.LayoutOrder = itemOrder
+		frame.Parent = page
+
+		local fc = Instance.new("UICorner")
+		fc.CornerRadius = UDim.new(0,6)
+		fc.Parent = frame
+
+		local lbl = Instance.new("TextLabel")
+		lbl.Text = text
+		lbl.Size = UDim2.new(1,-50,1,0)
+		lbl.BackgroundTransparency = 1
+		lbl.TextColor3 = Color3.fromRGB(220,220,220)
+		lbl.Font = Enum.Font.Gotham
+		lbl.TextSize = 12
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.Position = UDim2.new(0,10,0,0)
+		lbl.Parent = frame
+
+		local tog = Instance.new("TextButton")
+		tog.Size = UDim2.new(0,36,0,20)
+		tog.Position = UDim2.new(1,-46,0.5,-10)
+		tog.BorderSizePixel = 0
+		tog.Text = ""
+		tog.BackgroundColor3 = state and Color3.fromRGB(192,38,211) or Color3.fromRGB(60,60,60)
+		tog.Parent = frame
+
+		local tc = Instance.new("UICorner")
+		tc.CornerRadius = UDim.new(1,0)
+		tc.Parent = tog
+
+		tog.MouseButton1Click:Connect(function()
+			state = not state
+			tog.BackgroundColor3 = state and Color3.fromRGB(192,38,211) or Color3.fromRGB(60,60,60)
+			if callback then callback(state) end
+		end)
+	end
+
+	return Tab
+end
+
+return Library
