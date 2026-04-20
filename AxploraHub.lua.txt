@@ -46,10 +46,10 @@ top.BorderSizePixel = 0
 top.Parent = win
 
 local title = Instance.new("TextLabel")
-title.Text = "Axplora Hub_by AH. | v0.0.1 "
+title.Text = "Axplora Hub_by AH. | v0.0.1"
 title.Size = UDim2.new(1,0,1,0)
 title.BackgroundTransparency = 1
-title.TextColor3 = Color3.fromRGB(250,0,0)
+title.TextColor3 = Color3.fromRGB(255,0,0) -- 🔴 แดง
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -72,7 +72,6 @@ end
 top.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 	or input.UserInputType == Enum.UserInputType.Touch then
-
 		dragging = true
 		dragStart = input.Position
 		startPos = win.Position
@@ -150,15 +149,30 @@ local function selectTab(index)
 	end
 end
 
-function Library:AddTab(name)
+function Library:AddTab(name, imageId)
+	local tabIndex = #tabs + 1
+
+	local btnFrame = Instance.new("Frame")
+	btnFrame.Size = UDim2.new(1,0,0,32)
+	btnFrame.BackgroundTransparency = 1
+	btnFrame.Parent = sidebar
+
+	local icon = Instance.new("ImageLabel")
+	icon.Size = UDim2.new(0,20,0,20)
+	icon.Position = UDim2.new(0,6,0.5,-10)
+	icon.BackgroundTransparency = 1
+	icon.Image = "rbxassetid://"..tostring(imageId or 0)
+	icon.Parent = btnFrame
+
 	local btn = Instance.new("TextButton")
-	btn.Text = name
-	btn.Size = UDim2.new(1,0,0,32)
+	btn.Size = UDim2.new(1,-30,1,0)
+	btn.Position = UDim2.new(0,30,0,0)
 	btn.BackgroundTransparency = 1
+	btn.Text = name
 	btn.TextColor3 = Color3.fromRGB(150,150,150)
 	btn.Font = Enum.Font.GothamBold
 	btn.TextSize = 12
-	btn.Parent = sidebar
+	btn.Parent = btnFrame
 
 	local page = Instance.new("ScrollingFrame")
 	page.Size = UDim2.new(1,0,1,0)
@@ -176,14 +190,13 @@ function Library:AddTab(name)
 		page.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 20)
 	end)
 
-	local index = #tabs + 1
-	tabs[index] = {btn = btn, page = page}
+	tabs[tabIndex] = {btn = btn, page = page}
 
 	btn.MouseButton1Click:Connect(function()
-		selectTab(index)
+		selectTab(tabIndex)
 	end)
 
-	if index == 1 then
+	if tabIndex == 1 then
 		selectTab(1)
 	end
 
@@ -206,11 +219,21 @@ function Library:AddTab(name)
 		local tog = Instance.new("TextButton")
 		tog.Size = UDim2.new(1,0,0,30)
 		tog.Text = text .. " : OFF"
+		tog.BackgroundColor3 = Color3.fromRGB(60,60,60)
+		tog.TextColor3 = Color3.fromRGB(255,255,255)
 		tog.Parent = page
 
 		tog.MouseButton1Click:Connect(function()
 			state = not state
-			tog.Text = text .. " : " .. (state and "ON" or "OFF")
+
+			if state then
+				tog.Text = text .. " : ON"
+				tog.BackgroundColor3 = Color3.fromRGB(255,0,0)
+			else
+				tog.Text = text .. " : OFF"
+				tog.BackgroundColor3 = Color3.fromRGB(60,60,60)
+			end
+
 			if callback then callback(state) end
 		end)
 	end
@@ -219,4 +242,3 @@ function Library:AddTab(name)
 end
 
 return Library
--- แก้แล้ว(2)
