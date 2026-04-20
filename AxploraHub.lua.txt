@@ -46,10 +46,10 @@ top.BorderSizePixel = 0
 top.Parent = win
 
 local title = Instance.new("TextLabel")
-title.Text = "Axplora Hub_by AH. | v0.0.1"
+title.Text = "Axplora Hub"
 title.Size = UDim2.new(1,0,1,0)
 title.BackgroundTransparency = 1
-title.TextColor3 = Color3.fromRGB(255,0,0) -- 🔴 แดง
+title.TextColor3 = Color3.fromRGB(255,0,0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.TextXAlignment = Enum.TextXAlignment.Left
@@ -159,14 +159,14 @@ function Library:AddTab(name, imageId)
 
 	local icon = Instance.new("ImageLabel")
 	icon.Size = UDim2.new(0,20,0,20)
-	icon.Position = UDim2.new(0,6,0.5,-10)
+	icon.Position = UDim2.new(0,4,0.5,-10) -- 🔥 ชิดขึ้น
 	icon.BackgroundTransparency = 1
 	icon.Image = "rbxassetid://"..tostring(imageId or 0)
 	icon.Parent = btnFrame
 
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1,-30,1,0)
-	btn.Position = UDim2.new(0,30,0,0)
+	btn.Size = UDim2.new(1,-24,1,0) -- 🔥 ชิด
+	btn.Position = UDim2.new(0,24,0,0)
 	btn.BackgroundTransparency = 1
 	btn.Text = name
 	btn.TextColor3 = Color3.fromRGB(150,150,150)
@@ -201,6 +201,18 @@ function Library:AddTab(name, imageId)
 	end
 
 	local Tab = {}
+
+	function Tab:AddSection(text)
+		local label = Instance.new("TextLabel")
+		label.Text = text
+		label.Size = UDim2.new(1,0,0,28)
+		label.BackgroundTransparency = 1 -- 🔥 ใส
+		label.TextColor3 = Color3.fromRGB(255,255,255)
+		label.Font = Enum.Font.GothamBold
+		label.TextSize = 16 -- 🔥 ใหญ่ขึ้น
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Parent = page
+	end
 
 	function Tab:AddButton(text, callback)
 		local b = Instance.new("TextButton")
