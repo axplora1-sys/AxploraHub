@@ -519,55 +519,55 @@ warnLbl.TextColor3 = Color3.fromRGB(255,180,50)
 warnLbl.TextSize = 10; warnLbl.Font = Enum.Font.Code
 warnLbl.TextXAlignment = Enum.TextXAlignment.Left
 
+
 -- ============================================================
 -- ── TELEPORT TO PLAYER ──
 -- ============================================================
 local tpBlock = Block("Teleport To Player", 5)
 
--- Row: Enable toggle
+-- Row 1: Enable
 local tpEnRow = Row(tpBlock, 1, 34)
 RowLabel(tpEnRow, "Enable")
 Toggle(tpEnRow, 86,
-	function()
-		tpEnabled = true
-		startTpLoop()
-	end,
-	function()
-		tpEnabled = false
-	end
+	function() tpEnabled = true;  startTpLoop() end,
+	function() tpEnabled = false end
 )
 
--- Row: Dropdown label + Refresh button
+-- Row 2: Target selector
 local tpSelectRow = Row(tpBlock, 2, 34)
 RowLabel(tpSelectRow, "Target")
 
--- Dropdown (custom — TextButton แสดงชื่อที่เลือก)
-local dropBtn = Instance.new("TextButton", tpSelectRow)
-dropBtn.Size             = UDim2.new(0, 130, 0, 22)
-dropBtn.Position         = UDim2.new(0, 86, 0.5, -11)
-dropBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-dropBtn.BorderSizePixel  = 1
-dropBtn.BorderColor3     = Color3.fromRGB(60, 60, 60)
-dropBtn.Text             = "-- เลือกผู้เล่น --"
-dropBtn.TextColor3       = Color3.fromRGB(180, 180, 180)
-dropBtn.TextSize         = 11
-dropBtn.Font             = Enum.Font.Code
-dropBtn.ClipsDescendants = true
+local selectedLabel = Instance.new("TextLabel", tpSelectRow)
+selectedLabel.Size             = UDim2.new(0, 140, 0, 22)
+selectedLabel.Position         = UDim2.new(0, 86, 0.5, -11)
+selectedLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+selectedLabel.BorderSizePixel  = 1
+selectedLabel.BorderColor3     = Color3.fromRGB(60, 60, 60)
+selectedLabel.Text             = "-- เลือกผู้เล่น --"
+selectedLabel.TextColor3       = Color3.fromRGB(160, 160, 160)
+selectedLabel.TextSize         = 11
+selectedLabel.Font             = Enum.Font.Code
 
--- Refresh button
-local refreshBtn = Instance.new("TextButton", tpSelectRow)
-refreshBtn.Size             = UDim2.new(0, 22, 0, 22)
-refreshBtn.Position         = UDim2.new(0, 220, 0.5, -11)
-refreshBtn.BackgroundColor3 = Color3.fromRGB(42, 42, 42)
-refreshBtn.BorderSizePixel  = 1
-refreshBtn.BorderColor3     = Color3.fromRGB(60, 60, 60)
-refreshBtn.Text             = "↻"
-refreshBtn.TextColor3       = Color3.fromRGB(150, 150, 150)
-refreshBtn.TextSize         = 14
-refreshBtn.Font             = Enum.Font.Code
+-- Row 3: รายชื่อผู้เล่น (ScrollingFrame ฝังอยู่ใน block เลย ไม่ต้อง popup)
+local listRow = Row(tpBlock, 3, 120)
 
--- Teleport Now button (one-shot)
-local tpNowRow = Row(tpBlock, 3, 34)
+local playerListFrame = Instance.new("ScrollingFrame", listRow)
+playerListFrame.Size                = UDim2.new(1, -16, 1, -8)
+playerListFrame.Position            = UDim2.new(0, 8, 0, 4)
+playerListFrame.BackgroundColor3    = Color3.fromRGB(20, 20, 20)
+playerListFrame.BorderSizePixel     = 1
+playerListFrame.BorderColor3        = Color3.fromRGB(45, 45, 45)
+playerListFrame.ScrollBarThickness  = 4
+playerListFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 80)
+playerListFrame.CanvasSize          = UDim2.new(0, 0, 0, 0)
+playerListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local playerListLayout = Instance.new("UIListLayout", playerListFrame)
+playerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+playerListLayout.Padding   = UDim.new(0, 1)
+
+-- Row 4: Teleport Now
+local tpNowRow = Row(tpBlock, 4, 34)
 RowLabel(tpNowRow, "Action")
 
 local tpNowBtn = Instance.new("TextButton", tpNowRow)
@@ -581,10 +581,4 @@ tpNowBtn.TextSize         = 11
 tpNowBtn.Font             = Enum.Font.Code
 
 local tpStatusLbl = Instance.new("TextLabel", tpNowRow)
-tpStatusLbl.Size             = UDim2.new(0, 70, 0, 22)
-tpStatusLbl.Position         = UDim2.new(0, 202, 0.5, -11)
-tpStatusLbl.BackgroundTransparency = 1
-tpStatusLbl.Text             = ""
-tpStatusLbl.TextColor3       = Color3.fromRGB(79, 255, 176)
-tpStatusLbl.TextSize         = 10
-tpStatusLbl.Font             = Enum.Font
+tpStatusLbl.Size   
