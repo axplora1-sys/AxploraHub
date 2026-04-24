@@ -1,501 +1,541 @@
 -- Axplora Hub | Admin Panel v0.1
--- LocalScript > StarterPlayerScripts
+-- วางใน StarterPlayerScripts เป็น LocalScript
 
 local Players      = game:GetService("Players")
 local RunService   = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UIS          = game:GetService("UserInputService")
 
-local lp     = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local lp  = Players.LocalPlayer
+local cam = workspace.CurrentCamera
 
------------------------------------------------------------------
+---------------------------------------------------------------
 -- STATE
------------------------------------------------------------------
-local speedOn  = false;  local speedVal = 16
-local jumpOn   = false;  local jumpVal  = 50
-local flyOn    = false;  local flySpd   = 120
-local flingOn  = false
-local tpOn     = false;  local tpTarget = nil
-local flyBV, flyBG = nil, nil
+---------------------------------------------------------------
+local speedOn, speedVal = false, 16
+local jumpOn,  jumpVal  = false, 50
+local flyOn,   flySpd   = false, 120
+local flingOn           = false
+local tpOn,    tpTarget = false, nil
+local noclipOn          = false
+local antiFlingOn       = false
+local flyBV, flyBG      = nil, nil
+local noclipConn        = nil
+local antiFlingConn     = nil
 
------------------------------------------------------------------
--- LOGIC
------------------------------------------------------------------
-local function getHum()
-	local c = lp.Character
-	return c and c:FindFirstChildOfClass("Humanoid")
-end
+---------------------------------------------------------------
+-- HELPERS
+---------------------------------------------------------------
+local function getChar() return lp.Character end
+local function getHRP()  local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum()  local c=getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
 
--- Speed
+---------------------------------------------------------------
+-- SPEED / JUMP
+---------------------------------------------------------------
 local function applySpeed()
 	local h = getHum(); if h then h.WalkSpeed = speedVal end
 end
-
--- Jump
 local function applyJump()
 	local h = getHum()
 	if h then h.UseJumpPower = true; h.JumpPower = jumpVal end
 end
 
--- Fly
+---------------------------------------------------------------
+-- FLY
+---------------------------------------------------------------
 local function startFly()
-	local char = lp.Character; if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart")
-	local hum  = char:FindFirstChildOfClass("Humanoid")
-	if not root or not hum then return end
-	hum:ChangeState(Enum.HumanoidStateType.Physics)
-	for _, v in pairs(root:GetChildren()) do
+	local c = getChar(); if not c then return end
+	local r = c:FindFirstChild("HumanoidRootPart")
+	local h = c:FindFirstChildOfClass("Humanoid")
+	if not r or not h then return end
+	h:ChangeState(Enum.HumanoidStateType.Physics)
+	for _, v in pairs(r:GetChildren()) do
 		if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
 	end
-	flyBV = Instance.new("BodyVelocity")
-	flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-	flyBV.Velocity = Vector3.zero; flyBV.Parent = root
-	flyBG = Instance.new("BodyGyro")
-	flyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-	flyBG.P = 9e4; flyBG.Parent = root
+	flyBV = Instance.new("BodyVelocity", r)
+	flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	flyBV.Velocity = Vector3.zero
+	flyBG = Instance.new("BodyGyro", r)
+	flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+	flyBG.P = 9e4
 	task.spawn(function()
-		while flyOn and char.Parent do
-			local md = hum.MoveDirection; local cf = camera.CFrame
+		while flyOn and c.Parent do
+			local md = h.MoveDirection
+			local cf = cam.CFrame
 			if md.Magnitude > 0 then
-				local lm = cf:VectorToObjectSpace(md)
-				local dir = (cf.LookVector * -lm.Z) + (cf.RightVector * lm.X)
+				local lm  = cf:VectorToObjectSpace(md)
+				local dir = cf.LookVector * -lm.Z + cf.RightVector * lm.X
 				if dir.Magnitude > 0 then flyBV.Velocity = dir.Unit * flySpd end
-			else flyBV.Velocity = Vector3.zero end
-			flyBG.CFrame = cf; task.wait()
+			else
+				flyBV.Velocity = Vector3.zero
+			end
+			flyBG.CFrame = cf
+			task.wait()
 		end
 	end)
 end
 
 local function stopFly()
-	local char = lp.Character
-	if char then
-		local root = char:FindFirstChild("HumanoidRootPart")
-		if root then
-			for _, v in pairs(root:GetChildren()) do
-				if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
-			end
+	local r = getHRP()
+	if r then
+		for _, v in pairs(r:GetChildren()) do
+			if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
 		end
-		local h = char:FindFirstChildOfClass("Humanoid")
-		if h then h:ChangeState(Enum.HumanoidStateType.GettingUp) end
 	end
+	local h = getHum()
+	if h then h:ChangeState(Enum.HumanoidStateType.GettingUp) end
 	flyBV = nil; flyBG = nil
 end
 
--- Fling
+---------------------------------------------------------------
+-- FLING
+---------------------------------------------------------------
 local function startFling()
 	task.spawn(function()
 		local ml = 0.1
 		while flingOn do
 			RunService.Heartbeat:Wait()
-			local char = lp.Character
-			local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local v = hrp.Velocity
-				hrp.Velocity = v * 10000 + Vector3.new(0, 10000, 0)
+			local r = getHRP()
+			if r then
+				local v = r.Velocity
+				r.Velocity = v * 10000 + Vector3.new(0, 10000, 0)
 				RunService.RenderStepped:Wait()
-				hrp.Velocity = v
+				r.Velocity = v
 				RunService.Stepped:Wait()
-				hrp.Velocity = v + Vector3.new(0, ml, 0)
+				r.Velocity = v + Vector3.new(0, ml, 0)
 				ml = -ml
 			end
 		end
 	end)
 end
 
--- Teleport
+---------------------------------------------------------------
+-- TELEPORT
+---------------------------------------------------------------
 local function doTeleport()
 	if not tpTarget then return end
-	local t = Players:FindFirstChild(tpTarget); if not t then return end
-	local mc = lp.Character; local tc = t.Character
+	local t  = Players:FindFirstChild(tpTarget); if not t then return end
+	local mc = getChar()
+	local tc = t.Character
 	if not mc or not tc then return end
 	local mr = mc:FindFirstChild("HumanoidRootPart")
 	local tr = tc:FindFirstChild("HumanoidRootPart")
-	if not mr or not tr then return end
-	mr.CFrame = tr.CFrame * CFrame.new(0, 0, 3)
+	if mr and tr then mr.CFrame = tr.CFrame * CFrame.new(0, 0, 3) end
 end
 
 task.spawn(function()
-	while true do task.wait(0.1); if tpOn then doTeleport() end end
+	while true do
+		task.wait(0.1)
+		if tpOn then doTeleport() end
+	end
 end)
 
--- Respawn
-lp.CharacterAdded:Connect(function(char)
-	char:WaitForChild("Humanoid"); task.wait(0.5)
-	if speedOn then applySpeed() end
-	if jumpOn  then applyJump()  end
-	if flyOn   then startFly()   end
+---------------------------------------------------------------
+-- NOCLIP
+---------------------------------------------------------------
+local function startNoclip()
+	noclipConn = RunService.Stepped:Connect(function()
+		local c = getChar(); if not c then return end
+		for _, v in pairs(c:GetDescendants()) do
+			if v:IsA("BasePart") then v.CanCollide = false end
+		end
+	end)
+end
+local function stopNoclip()
+	if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+end
+
+---------------------------------------------------------------
+-- ANTI-FLING
+---------------------------------------------------------------
+local function startAntiFling()
+	antiFlingConn = RunService.Heartbeat:Connect(function()
+		local r = getHRP()
+		if r and r.Velocity.Magnitude > 300 then
+			r.Velocity = Vector3.zero
+		end
+	end)
+end
+local function stopAntiFling()
+	if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
+end
+
+---------------------------------------------------------------
+-- RESPAWN
+---------------------------------------------------------------
+lp.CharacterAdded:Connect(function(c)
+	c:WaitForChild("Humanoid"); task.wait(0.5)
+	if speedOn    then applySpeed()    end
+	if jumpOn     then applyJump()     end
+	if flyOn      then startFly()      end
+	if noclipOn   then startNoclip()   end
+	if antiFlingOn then startAntiFling() end
 end)
 
------------------------------------------------------------------
+---------------------------------------------------------------
 -- GUI
------------------------------------------------------------------
--- ScreenGui
+---------------------------------------------------------------
 local SG = Instance.new("ScreenGui")
-SG.Name = "AxploraHub"; SG.ResetOnSpawn = false
-SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-SG.Parent = lp.PlayerGui
+SG.Name          = "AxploraHub"
+SG.ResetOnSpawn  = false
+SG.Parent        = lp:WaitForChild("PlayerGui")
 
--- Main Frame
-local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 280, 0, 36)   -- height เริ่มที่ titlebar ก่อน AutomaticSize จะขยาย
-Main.AutomaticSize = Enum.AutomaticSize.Y
-Main.Position = UDim2.new(0, 20, 0, 60)
-Main.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
-Main.BorderSizePixel = 1
-Main.BorderColor3 = Color3.fromRGB(50, 50, 50)
-Main.Active = true; Main.Draggable = true
-Instance.new("UIListLayout", Main).SortOrder = Enum.SortOrder.LayoutOrder
+-- Open/Close button
+local OpenBtn = Instance.new("TextButton", SG)
+OpenBtn.Size              = UDim2.new(0, 28, 0, 60)
+OpenBtn.Position          = UDim2.new(0, 0, 0.5, -30)
+OpenBtn.BackgroundColor3  = Color3.fromRGB(26, 26, 26)
+OpenBtn.BorderSizePixel   = 1
+OpenBtn.BorderColor3      = Color3.fromRGB(60, 60, 60)
+OpenBtn.Text              = "◀"
+OpenBtn.TextColor3        = Color3.fromRGB(91, 143, 255)
+OpenBtn.TextSize          = 13
+OpenBtn.Font              = Enum.Font.Code
+OpenBtn.ZIndex            = 20
 
--- Title
-local Title = Instance.new("Frame", Main)
-Title.Size = UDim2.new(1, 0, 0, 28)
-Title.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
-Title.BorderSizePixel = 0; Title.LayoutOrder = 0
-local TDiv = Instance.new("Frame", Title)
-TDiv.Size = UDim2.new(1,0,0,1); TDiv.Position = UDim2.new(0,0,1,0)
-TDiv.BackgroundColor3 = Color3.fromRGB(50,50,50); TDiv.BorderSizePixel = 0
-local TLbl = Instance.new("TextLabel", Title)
-TLbl.Size = UDim2.new(1,-8,1,0); TLbl.Position = UDim2.new(0,8,0,0)
+-- Main panel
+local Panel = Instance.new("Frame", SG)
+Panel.Size             = UDim2.new(0, 260, 0, 460)
+Panel.Position         = UDim2.new(0, 30, 0.5, -230)
+Panel.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
+Panel.BorderSizePixel  = 1
+Panel.BorderColor3     = Color3.fromRGB(50, 50, 50)
+Panel.Active           = true
+Panel.Draggable        = true
+
+-- Title bar
+local TBar = Instance.new("Frame", Panel)
+TBar.Size             = UDim2.new(1, 0, 0, 26)
+TBar.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+TBar.BorderSizePixel  = 0
+local TLbl = Instance.new("TextLabel", TBar)
+TLbl.Size                 = UDim2.new(1, -8, 1, 0)
+TLbl.Position             = UDim2.new(0, 8, 0, 0)
 TLbl.BackgroundTransparency = 1
-TLbl.Text = "Axplora Hub  |  Admin Panel v0.1"
-TLbl.TextColor3 = Color3.fromRGB(255,255,255)
-TLbl.TextSize = 11; TLbl.Font = Enum.Font.Code
-TLbl.TextXAlignment = Enum.TextXAlignment.Left
+TLbl.Text                 = "Axplora Hub  |  v0.1"
+TLbl.TextColor3           = Color3.fromRGB(210, 210, 210)
+TLbl.TextSize             = 11
+TLbl.Font                 = Enum.Font.Code
+TLbl.TextXAlignment       = Enum.TextXAlignment.Left
+local TBarLine = Instance.new("Frame", TBar)
+TBarLine.Size             = UDim2.new(1, 0, 0, 1)
+TBarLine.Position         = UDim2.new(0, 0, 1, 0)
+TBarLine.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+TBarLine.BorderSizePixel  = 0
 
 -- Tab bar
-local TabBar = Instance.new("Frame", Main)
-TabBar.Size = UDim2.new(1,0,0,24)
-TabBar.BackgroundColor3 = Color3.fromRGB(22,22,22)
-TabBar.BorderSizePixel = 0; TabBar.LayoutOrder = 1
-local TBDiv = Instance.new("Frame", TabBar)
-TBDiv.Size = UDim2.new(1,0,0,1); TBDiv.Position = UDim2.new(0,0,1,-1)
-TBDiv.BackgroundColor3 = Color3.fromRGB(50,50,50); TBDiv.BorderSizePixel = 0
-local TabLbl = Instance.new("TextLabel", TabBar)
-TabLbl.Size = UDim2.new(0,65,1,-2); TabLbl.Position = UDim2.new(0,6,0,1)
-TabLbl.BackgroundTransparency = 1; TabLbl.Text = "Player"
-TabLbl.TextColor3 = Color3.fromRGB(255,255,255)
-TabLbl.TextSize = 12; TabLbl.Font = Enum.Font.Code
-local TabLine = Instance.new("Frame", TabLbl)
-TabLine.Size = UDim2.new(1,0,0,2); TabLine.Position = UDim2.new(0,0,1,-1)
-TabLine.BackgroundColor3 = Color3.fromRGB(91,143,255); TabLine.BorderSizePixel = 0
+local TabBar = Instance.new("Frame", Panel)
+TabBar.Size             = UDim2.new(1, 0, 0, 24)
+TabBar.Position         = UDim2.new(0, 0, 0, 26)
+TabBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+TabBar.BorderSizePixel  = 0
+local TabLine = Instance.new("Frame", TabBar)
+TabLine.Size             = UDim2.new(1, 0, 0, 1)
+TabLine.Position         = UDim2.new(0, 0, 1, -1)
+TabLine.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+TabLine.BorderSizePixel  = 0
 
--- Content wrapper (AutomaticSize)
-local Content = Instance.new("Frame", Main)
-Content.Size = UDim2.new(1,0,0,0)
-Content.AutomaticSize = Enum.AutomaticSize.Y
-Content.BackgroundTransparency = 1
-Content.BorderSizePixel = 0; Content.LayoutOrder = 2
-local CL = Instance.new("UIListLayout", Content)
-CL.SortOrder = Enum.SortOrder.LayoutOrder; CL.Padding = UDim.new(0,4)
-local CP = Instance.new("UIPadding", Content)
-CP.PaddingTop = UDim.new(0,6); CP.PaddingBottom = UDim.new(0,6)
-CP.PaddingLeft = UDim.new(0,6); CP.PaddingRight = UDim.new(0,6)
+-- Scroll
+local Scroll = Instance.new("ScrollingFrame", Panel)
+Scroll.Size                  = UDim2.new(1, 0, 1, -50)
+Scroll.Position              = UDim2.new(0, 0, 0, 50)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel       = 0
+Scroll.ScrollBarThickness    = 4
+Scroll.ScrollBarImageColor3  = Color3.fromRGB(70, 70, 70)
+Scroll.CanvasSize            = UDim2.new(0, 0, 0, 0)
+Scroll.AutomaticCanvasSize   = Enum.AutomaticSize.Y
+local SLL = Instance.new("UIListLayout", Scroll)
+SLL.SortOrder = Enum.SortOrder.LayoutOrder
+SLL.Padding   = UDim.new(0, 4)
+local SPad = Instance.new("UIPadding", Scroll)
+SPad.PaddingTop    = UDim.new(0, 5)
+SPad.PaddingBottom = UDim.new(0, 5)
+SPad.PaddingLeft   = UDim.new(0, 5)
+SPad.PaddingRight  = UDim.new(0, 5)
 
------------------------------------------------------------------
--- WIDGET HELPERS
------------------------------------------------------------------
-local function makeBlock(title, order)
-	local f = Instance.new("Frame", Content)
-	f.Size = UDim2.new(1,0,0,0); f.AutomaticSize = Enum.AutomaticSize.Y
-	f.BackgroundColor3 = Color3.fromRGB(26,26,26)
-	f.BorderSizePixel = 1; f.BorderColor3 = Color3.fromRGB(42,42,42)
-	f.LayoutOrder = order
+---------------------------------------------------------------
+-- TAB SYSTEM
+---------------------------------------------------------------
+local TABS     = { "Player", "TP", "ป้องกัน" }
+local tabBtns  = {}
+local allBlocks = { {}, {}, {} }  -- blocks per tab index
+local curTab   = 1
+local tabW     = math.floor(260 / #TABS)
+
+local function switchTab(i)
+	curTab = i
+	for ti, blocks in ipairs(allBlocks) do
+		for _, b in ipairs(blocks) do
+			b.Visible = (ti == i)
+		end
+	end
+	for j, t in ipairs(tabBtns) do
+		t.lbl.TextColor3   = (j == i) and Color3.fromRGB(255,255,255) or Color3.fromRGB(85,85,85)
+		t.line.Visible     = (j == i)
+	end
+	Scroll.CanvasPosition = Vector2.zero
+end
+
+for i, name in ipairs(TABS) do
+	local btn = Instance.new("TextButton", TabBar)
+	btn.Size                = UDim2.new(0, tabW, 1, -2)
+	btn.Position            = UDim2.new(0, (i-1)*tabW, 0, 1)
+	btn.BackgroundTransparency = 1
+	btn.BorderSizePixel     = 0
+	btn.Text                = name
+	btn.TextColor3          = (i==1) and Color3.fromRGB(255,255,255) or Color3.fromRGB(85,85,85)
+	btn.TextSize            = 11
+	btn.Font                = Enum.Font.Code
+
+	local ul = Instance.new("Frame", btn)
+	ul.Size             = UDim2.new(1, 0, 0, 2)
+	ul.Position         = UDim2.new(0, 0, 1, -1)
+	ul.BackgroundColor3 = Color3.fromRGB(91, 143, 255)
+	ul.BorderSizePixel  = 0
+	ul.Visible          = (i == 1)
+
+	tabBtns[i] = { btn=btn, lbl=btn, line=ul }
+	local idx = i
+	btn.MouseButton1Click:Connect(function() switchTab(idx) end)
+end
+
+---------------------------------------------------------------
+-- WIDGET BUILDERS
+---------------------------------------------------------------
+local function mkBlock(tabIdx, title, order)
+	local f = Instance.new("Frame", Scroll)
+	f.Name             = title
+	f.Size             = UDim2.new(1, 0, 0, 0)
+	f.AutomaticSize    = Enum.AutomaticSize.Y
+	f.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+	f.BorderSizePixel  = 1
+	f.BorderColor3     = Color3.fromRGB(42, 42, 42)
+	f.LayoutOrder      = order
+	f.Visible          = (tabIdx == 1)
 	Instance.new("UIListLayout", f).SortOrder = Enum.SortOrder.LayoutOrder
 
 	local hdr = Instance.new("Frame", f)
-	hdr.Size = UDim2.new(1,0,0,20)
-	hdr.BackgroundColor3 = Color3.fromRGB(34,34,34)
-	hdr.BorderSizePixel = 0; hdr.LayoutOrder = 0
-	local hd = Instance.new("Frame", hdr)
-	hd.Size = UDim2.new(1,0,0,1); hd.Position = UDim2.new(0,0,1,0)
-	hd.BackgroundColor3 = Color3.fromRGB(42,42,42); hd.BorderSizePixel = 0
-	local hl = Instance.new("TextLabel", hdr)
-	hl.Size = UDim2.new(1,-8,1,0); hl.Position = UDim2.new(0,8,0,0)
-	hl.BackgroundTransparency = 1; hl.Text = string.upper(title)
-	hl.TextColor3 = Color3.fromRGB(120,120,120)
-	hl.TextSize = 10; hl.Font = Enum.Font.Code
-	hl.TextXAlignment = Enum.TextXAlignment.Left
+	hdr.Size             = UDim2.new(1, 0, 0, 20)
+	hdr.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+	hdr.BorderSizePixel  = 0
+	hdr.LayoutOrder      = 0
+	local hdiv = Instance.new("Frame", hdr)
+	hdiv.Size             = UDim2.new(1,0,0,1); hdiv.Position = UDim2.new(0,0,1,0)
+	hdiv.BackgroundColor3 = Color3.fromRGB(42,42,42); hdiv.BorderSizePixel = 0
+	local htxt = Instance.new("TextLabel", hdr)
+	htxt.Size               = UDim2.new(1,-8,1,0); htxt.Position = UDim2.new(0,8,0,0)
+	htxt.BackgroundTransparency = 1
+	htxt.Text               = string.upper(title)
+	htxt.TextColor3         = Color3.fromRGB(110,110,110)
+	htxt.TextSize           = 10; htxt.Font = Enum.Font.Code
+	htxt.TextXAlignment     = Enum.TextXAlignment.Left
+
+	table.insert(allBlocks[tabIdx], f)
 	return f
 end
 
-local function makeRow(parent, order, h)
+local function mkRow(parent, order, h)
 	local r = Instance.new("Frame", parent)
-	r.Size = UDim2.new(1,0,0,h or 32)
-	r.BackgroundTransparency = 1; r.LayoutOrder = order
+	r.Size                = UDim2.new(1, 0, 0, h or 32)
+	r.BackgroundTransparency = 1
+	r.LayoutOrder         = order
 	local d = Instance.new("Frame", r)
-	d.Size = UDim2.new(1,0,0,1); d.Position = UDim2.new(0,0,1,-1)
+	d.Size             = UDim2.new(1,0,0,1); d.Position = UDim2.new(0,0,1,-1)
 	d.BackgroundColor3 = Color3.fromRGB(30,30,30); d.BorderSizePixel = 0
 	return r
 end
 
-local function makeLabel(parent, text)
+local function mkLbl(parent, text)
 	local l = Instance.new("TextLabel", parent)
-	l.Size = UDim2.new(0,76,1,0); l.Position = UDim2.new(0,8,0,0)
-	l.BackgroundTransparency = 1; l.Text = text
-	l.TextColor3 = Color3.fromRGB(155,155,155)
-	l.TextSize = 12; l.Font = Enum.Font.Code
-	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.Size               = UDim2.new(0, 74, 1, 0)
+	l.Position           = UDim2.new(0, 7, 0, 0)
+	l.BackgroundTransparency = 1
+	l.Text               = text
+	l.TextColor3         = Color3.fromRGB(150, 150, 150)
+	l.TextSize           = 11; l.Font = Enum.Font.Code
+	l.TextXAlignment     = Enum.TextXAlignment.Left
 end
 
--- Toggle: returns nothing, just wires onCB/offCB
-local function makeToggle(parent, onCB, offCB)
+local function mkToggle(parent, onCB, offCB)
 	local bg = Instance.new("Frame", parent)
-	bg.Size = UDim2.new(0,34,0,17); bg.Position = UDim2.new(0,88,0.5,-8)
-	bg.BackgroundColor3 = Color3.fromRGB(50,50,50)
-	bg.BorderSizePixel = 1; bg.BorderColor3 = Color3.fromRGB(66,66,66)
+	bg.Size             = UDim2.new(0, 34, 0, 17)
+	bg.Position         = UDim2.new(0, 86, 0.5, -8)
+	bg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	bg.BorderSizePixel  = 1; bg.BorderColor3 = Color3.fromRGB(66,66,66)
+
 	local knob = Instance.new("Frame", bg)
-	knob.Size = UDim2.new(0,11,0,11); knob.Position = UDim2.new(0,2,0.5,-5)
+	knob.Size             = UDim2.new(0,11,0,11); knob.Position = UDim2.new(0,2,0.5,-5)
 	knob.BackgroundColor3 = Color3.fromRGB(255,255,255); knob.BorderSizePixel = 0
-	local sl = Instance.new("TextLabel", parent)
-	sl.Size = UDim2.new(0,26,0,17); sl.Position = UDim2.new(0,126,0.5,-8)
-	sl.BackgroundTransparency = 1; sl.Text = "OFF"
-	sl.TextColor3 = Color3.fromRGB(100,100,100)
-	sl.TextSize = 10; sl.Font = Enum.Font.Code
+
+	local stlbl = Instance.new("TextLabel", parent)
+	stlbl.Size               = UDim2.new(0, 28, 0, 17)
+	stlbl.Position           = UDim2.new(0, 124, 0.5, -8)
+	stlbl.BackgroundTransparency = 1
+	stlbl.Text               = "OFF"; stlbl.TextColor3 = Color3.fromRGB(100,100,100)
+	stlbl.TextSize           = 10; stlbl.Font = Enum.Font.Code
+
 	local btn = Instance.new("TextButton", parent)
-	btn.Size = UDim2.new(0,64,1,0); btn.Position = UDim2.new(0,88,0,0)
+	btn.Size                = UDim2.new(0, 64, 1, 0)
+	btn.Position            = UDim2.new(0, 86, 0, 0)
 	btn.BackgroundTransparency = 1; btn.Text = ""; btn.BorderSizePixel = 0
+
 	local on = false
 	btn.MouseButton1Click:Connect(function()
 		on = not on
 		if on then
 			bg.BackgroundColor3 = Color3.fromRGB(91,143,255)
-			bg.BorderColor3 = Color3.fromRGB(91,143,255)
-			TweenService:Create(knob,TweenInfo.new(0.12),{Position=UDim2.new(0,21,0.5,-5)}):Play()
-			sl.Text = "ON"; sl.TextColor3 = Color3.fromRGB(91,143,255)
+			bg.BorderColor3     = Color3.fromRGB(91,143,255)
+			TweenService:Create(knob, TweenInfo.new(0.12), {Position=UDim2.new(0,21,0.5,-5)}):Play()
+			stlbl.Text = "ON"; stlbl.TextColor3 = Color3.fromRGB(91,143,255)
 			if onCB then onCB() end
 		else
 			bg.BackgroundColor3 = Color3.fromRGB(50,50,50)
-			bg.BorderColor3 = Color3.fromRGB(66,66,66)
-			TweenService:Create(knob,TweenInfo.new(0.12),{Position=UDim2.new(0,2,0.5,-5)}):Play()
-			sl.Text = "OFF"; sl.TextColor3 = Color3.fromRGB(100,100,100)
+			bg.BorderColor3     = Color3.fromRGB(66,66,66)
+			TweenService:Create(knob, TweenInfo.new(0.12), {Position=UDim2.new(0,2,0.5,-5)}):Play()
+			stlbl.Text = "OFF"; stlbl.TextColor3 = Color3.fromRGB(100,100,100)
 			if offCB then offCB() end
 		end
 	end)
 end
 
--- PlusMinus + Slider (2 rows)
-local function makePMS(parent, order, def, mn, mx, stp, onChange)
-	-- row 1: value
-	local r1 = makeRow(parent, order, 32)
-	makeLabel(r1, "Value")
+local function mkPMS(parent, order, def, mn, mx, stp, onChange)
+	-- +/- row
+	local r1 = mkRow(parent, order, 32); mkLbl(r1, "Value")
 	local minus = Instance.new("TextButton", r1)
-	minus.Size = UDim2.new(0,20,0,20); minus.Position = UDim2.new(0,88,0.5,-10)
+	minus.Size             = UDim2.new(0,20,0,20); minus.Position = UDim2.new(0,86,0.5,-10)
 	minus.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	minus.BorderSizePixel = 1; minus.BorderColor3 = Color3.fromRGB(58,58,58)
-	minus.Text = "-"; minus.TextColor3 = Color3.fromRGB(210,210,210)
+	minus.BorderSizePixel  = 1; minus.BorderColor3 = Color3.fromRGB(58,58,58)
+	minus.Text = "-"; minus.TextColor3 = Color3.fromRGB(200,200,200)
 	minus.TextSize = 14; minus.Font = Enum.Font.Code
 	local nb = Instance.new("TextBox", r1)
-	nb.Size = UDim2.new(0,46,0,20); nb.Position = UDim2.new(0,112,0.5,-10)
-	nb.BackgroundColor3 = Color3.fromRGB(15,15,15)
-	nb.BorderSizePixel = 1; nb.BorderColor3 = Color3.fromRGB(40,40,40)
+	nb.Size             = UDim2.new(0,44,0,20); nb.Position = UDim2.new(0,110,0.5,-10)
+	nb.BackgroundColor3 = Color3.fromRGB(14,14,14)
+	nb.BorderSizePixel  = 1; nb.BorderColor3 = Color3.fromRGB(40,40,40)
 	nb.Text = tostring(def); nb.TextColor3 = Color3.fromRGB(255,255,255)
 	nb.TextSize = 12; nb.Font = Enum.Font.Code; nb.ClearTextOnFocus = false
 	local plus = Instance.new("TextButton", r1)
-	plus.Size = UDim2.new(0,20,0,20); plus.Position = UDim2.new(0,162,0.5,-10)
+	plus.Size             = UDim2.new(0,20,0,20); plus.Position = UDim2.new(0,158,0.5,-10)
 	plus.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	plus.BorderSizePixel = 1; plus.BorderColor3 = Color3.fromRGB(58,58,58)
-	plus.Text = "+"; plus.TextColor3 = Color3.fromRGB(210,210,210)
+	plus.BorderSizePixel  = 1; plus.BorderColor3 = Color3.fromRGB(58,58,58)
+	plus.Text = "+"; plus.TextColor3 = Color3.fromRGB(200,200,200)
 	plus.TextSize = 14; plus.Font = Enum.Font.Code
 
-	-- row 2: slider
-	local r2 = makeRow(parent, order+1, 28)
-	makeLabel(r2, "Slider")
+	-- slider row
+	local r2 = mkRow(parent, order+1, 26); mkLbl(r2, "Slider")
 	local sbg = Instance.new("Frame", r2)
-	sbg.Size = UDim2.new(0,128,0,4); sbg.Position = UDim2.new(0,88,0.5,-2)
-	sbg.BackgroundColor3 = Color3.fromRGB(48,48,48); sbg.BorderSizePixel = 0
+	sbg.Size             = UDim2.new(0,124,0,4); sbg.Position = UDim2.new(0,86,0.5,-2)
+	sbg.BackgroundColor3 = Color3.fromRGB(46,46,46); sbg.BorderSizePixel = 0
 	local sfill = Instance.new("Frame", sbg)
 	sfill.BackgroundColor3 = Color3.fromRGB(91,143,255); sfill.BorderSizePixel = 0
-	sfill.Size = UDim2.new((def-mn)/(mx-mn),0,1,0)
+	sfill.Size = UDim2.new((def-mn)/(mx-mn), 0, 1, 0)
 	local sk = Instance.new("TextButton", sbg)
-	sk.Size = UDim2.new(0,12,0,12); sk.ZIndex = 5
-	sk.Position = UDim2.new((def-mn)/(mx-mn),-6,0.5,-6)
-	sk.BackgroundColor3 = Color3.fromRGB(91,143,255); sk.BorderSizePixel = 0
-	sk.Text = ""
+	sk.Size             = UDim2.new(0,12,0,12); sk.ZIndex = 5
+	sk.Position         = UDim2.new((def-mn)/(mx-mn),-6,0.5,-6)
+	sk.BackgroundColor3 = Color3.fromRGB(91,143,255); sk.BorderSizePixel = 0; sk.Text = ""
 
 	local val = def
 	local function set(v)
 		val = math.clamp(math.floor(v/stp+0.5)*stp, mn, mx)
 		nb.Text = tostring(val)
-		local r = (val-mn)/(mx-mn)
-		sfill.Size = UDim2.new(r,0,1,0); sk.Position = UDim2.new(r,-6,0.5,-6)
+		local ratio = (val-mn)/(mx-mn)
+		sfill.Size = UDim2.new(ratio,0,1,0)
+		sk.Position = UDim2.new(ratio,-6,0.5,-6)
 		if onChange then onChange(val) end
 	end
 
 	minus.MouseButton1Click:Connect(function() set(val-stp) end)
 	plus.MouseButton1Click:Connect(function()  set(val+stp) end)
 	nb.FocusLost:Connect(function()
-		local n = tonumber(nb.Text); if n then set(n) else nb.Text = tostring(val) end
+		local n = tonumber(nb.Text)
+		if n then set(n) else nb.Text = tostring(val) end
 	end)
 	local drag = false
 	sk.MouseButton1Down:Connect(function() drag = true end)
-	sbg.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = true end
+	sbg.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then drag = true end
 	end)
-	UIS.InputEnded:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
+	UIS.InputEnded:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
 	end)
-	UIS.InputChanged:Connect(function(i)
-		if drag and i.UserInputType == Enum.UserInputType.MouseMovement then
-			local rx = math.clamp((i.Position.X - sbg.AbsolutePosition.X)/sbg.AbsoluteSize.X,0,1)
+	UIS.InputChanged:Connect(function(inp)
+		if drag and inp.UserInputType == Enum.UserInputType.MouseMovement then
+			local rx = math.clamp((inp.Position.X - sbg.AbsolutePosition.X)/sbg.AbsoluteSize.X, 0, 1)
 			set(mn + rx*(mx-mn))
 		end
 	end)
 end
 
------------------------------------------------------------------
--- BUILD BLOCKS
------------------------------------------------------------------
-
--- ── SPEED ──
-local bSpeed = makeBlock("Speed", 1)
-local rSE = makeRow(bSpeed, 1, 32); makeLabel(rSE, "Enable")
-makeToggle(rSE,
-	function() speedOn=true;  applySpeed() end,
-	function() speedOn=false; local h=getHum(); if h then h.WalkSpeed=16 end end)
-makePMS(bSpeed, 2, 16, 1, 500, 1, function(v) speedVal=v; if speedOn then applySpeed() end end)
-
--- ── JUMP POWER ──
-local bJump = makeBlock("Jump Power", 2)
-local rJE = makeRow(bJump, 1, 32); makeLabel(rJE, "Enable")
-makeToggle(rJE,
-	function() jumpOn=true;  applyJump() end,
-	function() jumpOn=false; local h=getHum(); if h then h.UseJumpPower=true; h.JumpPower=50 end end)
-makePMS(bJump, 2, 50, 1, 500, 5, function(v) jumpVal=v; if jumpOn then applyJump() end end)
-
--- ── FLY ──
-local bFly = makeBlock("Player Fly", 3)
-local rFE = makeRow(bFly, 1, 32); makeLabel(rFE, "Enable")
-makeToggle(rFE,
-	function() flyOn=true;  startFly() end,
-	function() flyOn=false; stopFly()  end)
-makePMS(bFly, 2, 120, 10, 500, 10, function(v) flySpd=v end)
-
--- ── FLING ──
-local bFling = makeBlock("Fling", 4)
-local rFLG = makeRow(bFling, 1, 32); makeLabel(rFLG, "Enable")
-makeToggle(rFLG,
-	function() flingOn=true;  startFling() end,
-	function() flingOn=false end)
-local rFW = makeRow(bFling, 2, 22)
-local wl = Instance.new("TextLabel", rFW)
-wl.Size=UDim2.new(1,-14,1,0); wl.Position=UDim2.new(0,8,0,0)
-wl.BackgroundTransparency=1; wl.Text="⚠  กระเด็นผู้เล่นรอบข้าง"
-wl.TextColor3=Color3.fromRGB(255,170,40); wl.TextSize=10; wl.Font=Enum.Font.Code
-wl.TextXAlignment=Enum.TextXAlignment.Left
-
--- ── TELEPORT TO PLAYER ──
-local bTP = makeBlock("Teleport To Player", 5)
-
--- Row: Enable
-local rTE = makeRow(bTP, 1, 32); makeLabel(rTE, "Enable")
-makeToggle(rTE,
-	function() tpOn=true end,
-	function() tpOn=false end)
-
--- Row: ชื่อที่เลือกอยู่
-local rTS = makeRow(bTP, 2, 32); makeLabel(rTS, "Target")
-local selLbl = Instance.new("TextLabel", rTS)
-selLbl.Size = UDim2.new(0,150,0,20); selLbl.Position = UDim2.new(0,88,0.5,-10)
-selLbl.BackgroundColor3 = Color3.fromRGB(22,22,22)
-selLbl.BorderSizePixel = 1; selLbl.BorderColor3 = Color3.fromRGB(45,45,45)
-selLbl.Text = "-- ยังไม่ได้เลือก --"
-selLbl.TextColor3 = Color3.fromRGB(140,140,140)
-selLbl.TextSize = 11; selLbl.Font = Enum.Font.Code
-
--- Row: player list (ScrollingFrame ฝังใน block)
-local rTL = makeRow(bTP, 3, 110)
-local pScroll = Instance.new("ScrollingFrame", rTL)
-pScroll.Size = UDim2.new(1,-12,1,-8); pScroll.Position = UDim2.new(0,6,0,4)
-pScroll.BackgroundColor3 = Color3.fromRGB(20,20,20)
-pScroll.BorderSizePixel = 1; pScroll.BorderColor3 = Color3.fromRGB(40,40,40)
-pScroll.ScrollBarThickness = 4
-pScroll.ScrollBarImageColor3 = Color3.fromRGB(80,80,80)
-pScroll.CanvasSize = UDim2.new(0,0,0,0)
-pScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-local pLayout = Instance.new("UIListLayout", pScroll)
-pLayout.SortOrder = Enum.SortOrder.LayoutOrder; pLayout.Padding = UDim.new(0,1)
-
--- Row: Teleport Now
-local rTN = makeRow(bTP, 4, 32); makeLabel(rTN, "Action")
-local tpBtn = Instance.new("TextButton", rTN)
-tpBtn.Size = UDim2.new(0,100,0,22); tpBtn.Position = UDim2.new(0,88,0.5,-11)
-tpBtn.BackgroundColor3 = Color3.fromRGB(91,143,255); tpBtn.BorderSizePixel = 0
-tpBtn.Text = "Teleport Now"; tpBtn.TextColor3 = Color3.fromRGB(255,255,255)
-tpBtn.TextSize = 11; tpBtn.Font = Enum.Font.Code
-local tpSt = Instance.new("TextLabel", rTN)
-tpSt.Size = UDim2.new(0,70,0,22); tpSt.Position = UDim2.new(0,194,0.5,-11)
-tpSt.BackgroundTransparency = 1; tpSt.Text = ""
-tpSt.TextColor3 = Color3.fromRGB(79,255,176); tpSt.TextSize = 10; tpSt.Font = Enum.Font.Code
-tpSt.TextXAlignment = Enum.TextXAlignment.Left
-
--- Build player list
-local function buildList()
-	for _, c in ipairs(pScroll:GetChildren()) do
-		if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end
-	end
-	local all = Players:GetPlayers()
-	local count = 0
-	for _, p in ipairs(all) do
-		if p ~= lp then
-			count += 1
-			local btn = Instance.new("TextButton", pScroll)
-			btn.Size = UDim2.new(1,0,0,26)
-			btn.BackgroundColor3 = (tpTarget == p.Name)
-				and Color3.fromRGB(35,50,80) or Color3.fromRGB(26,26,26)
-			btn.BorderSizePixel = 0; btn.LayoutOrder = count
-			btn.Text = "  " .. p.Name
-			btn.TextColor3 = (tpTarget == p.Name)
-				and Color3.fromRGB(91,143,255) or Color3.fromRGB(200,200,200)
-			btn.TextSize = 12; btn.Font = Enum.Font.Code
-			btn.TextXAlignment = Enum.TextXAlignment.Left
-			btn.MouseButton1Click:Connect(function()
-				tpTarget = p.Name
-				selLbl.Text = p.Name; selLbl.TextColor3 = Color3.fromRGB(255,255,255)
-				buildList()
-			end)
-		end
-	end
-	if count == 0 then
-		local nl = Instance.new("TextLabel", pScroll)
-		nl.Size = UDim2.new(1,0,0,26); nl.BackgroundTransparency = 1
-		nl.Text = "  (ไม่มีผู้เล่นอื่น)"; nl.TextColor3 = Color3.fromRGB(90,90,90)
-		nl.TextSize = 11; nl.Font = Enum.Font.Code; nl.TextXAlignment = Enum.TextXAlignment.Left
-	end
+local function mkNote(parent, order, text, color)
+	local r = mkRow(parent, order, 20)
+	local l = Instance.new("TextLabel", r)
+	l.Size               = UDim2.new(1,-14,1,0); l.Position = UDim2.new(0,7,0,0)
+	l.BackgroundTransparency = 1; l.Text = text
+	l.TextColor3         = color or Color3.fromRGB(90,90,90)
+	l.TextSize           = 10; l.Font = Enum.Font.Code
+	l.TextXAlignment     = Enum.TextXAlignment.Left
 end
 
-buildList()
+---------------------------------------------------------------
+-- TAB 1 — PLAYER
+---------------------------------------------------------------
+-- Speed
+local bSpd = mkBlock(1,"Speed",1)
+local rSE  = mkRow(bSpd,1,32); mkLbl(rSE,"Enable")
+mkToggle(rSE,
+	function() speedOn=true;  applySpeed() end,
+	function() speedOn=false; local h=getHum(); if h then h.WalkSpeed=16 end end)
+mkPMS(bSpd, 2, 16, 1, 500, 1, function(v) speedVal=v; if speedOn then applySpeed() end end)
 
--- Auto-refresh ทุก 2 วิ
-task.spawn(function()
-	while true do
-		task.wait(2)
-		buildList()
-		if tpTarget and not Players:FindFirstChild(tpTarget) then
-			tpTarget = nil
-			selLbl.Text = "-- ยังไม่ได้เลือก --"
-			selLbl.TextColor3 = Color3.fromRGB(140,140,140)
-		end
-	end
-end)
+-- Jump Power
+local bJmp = mkBlock(1,"Jump Power",2)
+local rJE  = mkRow(bJmp,1,32); mkLbl(rJE,"Enable")
+mkToggle(rJE,
+	function() jumpOn=true;  applyJump() end,
+	function() jumpOn=false; local h=getHum(); if h then h.UseJumpPower=true;h.JumpPower=50 end end)
+mkPMS(bJmp, 2, 50, 1, 500, 5, function(v) jumpVal=v; if jumpOn then applyJump() end end)
 
-Players.PlayerAdded:Connect(function() task.wait(1); buildList() end)
-Players.PlayerRemoving:Connect(function(p)
-	if tpTarget == p.Name then
-		tpTarget = nil
-		selLbl.Text = "-- ยังไม่ได้เลือก --"
-		selLbl.TextColor3 = Color3.fromRGB(140,140,140)
-	end
-	task.wait(0.1); buildList()
-end)
+-- Fly
+local bFly = mkBlock(1,"Player Fly",3)
+local rFE  = mkRow(bFly,1,32); mkLbl(rFE,"Enable")
+mkToggle(rFE,
+	function() flyOn=true;  startFly() end,
+	function() flyOn=false; stopFly()  end)
+mkPMS(bFly, 2, 120, 10, 500, 10, function(v) flySpd=v end)
 
--- Teleport Now button
-tpBtn.MouseButton1Click:Connect(function()
-	if not tpTarget then
-		tpSt.Text = "⚠ เลือกก่อน"; tpSt.TextColor3 = Color3.fromRGB(255,100,100)
-		task.delay(1.5, function() tpSt.Text = "" end); return
-	end
-	doTeleport()
-	tpSt.Text = "✓ วาปแล้ว"; tpSt.TextColor3 = Color3.fromRGB(79,255,176)
-	task.delay(1.5, function() tpSt.Text = "" end)
-end)
+-- Fling
+local bFlg = mkBlock(1,"Fling",4)
+local rFLG = mkRow(bFlg,1,32); mkLbl(rFLG,"Enable")
+mkToggle(rFLG,
+	function() flingOn=true;  startFling() end,
+	function() flingOn=false end)
+mkNote(bFlg, 2, "⚠  กระเด็นผู้เล่นรอบข้าง", Color3.fromRGB(255,160,40))
+
+---------------------------------------------------------------
+-- TAB 2 — TP
+---------------------------------------------------------------
+local bTP = mkBlock(2,"Teleport To Player",1)
+
+-- Enable
+local rTEn = mkRow(bTP,1,32); mkLbl(rTEn,"Enable")
+mkToggle(rTEn,
+	function() tpOn=true  end,
+	function() tpOn=false end)
+
+-- Selected label
+local rTSel = mkRow(bTP,2,32); mkLbl(rTSel,"Target")
+local selLbl = Instance.new("TextLabel", rTSel)
+selLbl.Size             = UDim2.new(0,148,0,20); selLbl.Position = UDim2.new(0,86,0.5,-10)
+selLbl.BackgroundColor3 = Color3.fromRGB(20,20,20)
+selLbl.BorderSizePixel  = 1; selLbl.BorderColor3 = Color3.fromRGB(42,42,42)
+selLbl.Text             = "-- ยังไม่ได้เลือก --"
+selLbl.TextColor3       = Color3.fromRGB(120,120,120)
+selLbl.TextSize         = 11; selLbl.Font = Enum.Font.Code
+
+-- Player list
+local rTList = mkRow(bTP,3,110)
+local pSF = Instance.new("ScrollingFrame", rTList)
+pSF.Size                 = UDim2.new(1,-10,1,-8); pSF.Position = UDim2.new(0,5,0,4)
+pSF.BackgroundColor3     = Color3.fromRGB(20,20,20)
+pSF.BorderSizePixel    
