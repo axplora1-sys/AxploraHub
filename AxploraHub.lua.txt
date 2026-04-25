@@ -7,7 +7,7 @@ local fBV,fBG,ncC,afC,alC=nil,nil,nil,nil,nil
 local safePos,lastSafe=nil,0
 local ESP_TOOL,ESP_DEF,ESP_DGR="Knife",Color3.fromRGB(255,255,255),Color3.fromRGB(255,0,0)
 local specDist,specAngleX,specAngleY=10,0,0
-local specDrag,specDragStart,specAngleStart=false,nil,nil
+local specDrag=false
 
 local H=function() local c=lp.Character;return c and c:FindFirstChildOfClass("Humanoid") end
 local R=function() local c=lp.Character;return c and c:FindFirstChild("HumanoidRootPart") end
@@ -94,20 +94,29 @@ local function stopSpec()
 	local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end
 end
 
--- ซูมด้วย scroll wheel
+-- Spectate controls
 UIS.InputChanged:Connect(function(i)
 	if not specOn then return end
 	if i.UserInputType==Enum.UserInputType.MouseWheel then
 		specDist=math.clamp(specDist-i.Position.Z*2,3,60)
 	end
 	if specDrag and i.UserInputType==Enum.UserInputType.MouseMovement then
-		local delta=i.Position-specDragStart
-		specAngleY=specAngleStart.X+delta.X*0.01
-		specAngleX=math.clamp(specAngleStart.Y-delta.Y*0.01,-1.2,1.2)
+		specAngleY=specAngleY+i.Delta.X*0.005
+		specAngleX=math.clamp(specAngleX-i.Delta.Y*0.005,-1.4,1.4)
 	end
 end)
-UIS.InputBegan:Connect(function(i) if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=true;specDragStart=UIS:GetMouseLocation();specAngleStart=Vector2.new(specAngleY,specAngleX) end end)
-UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=false end end)
+UIS.InputBegan:Connect(function(i)
+	if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then
+		specDrag=true
+		UIS.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
+	end
+end)
+UIS.InputEnded:Connect(function(i)
+	if i.UserInputType==Enum.UserInputType.MouseButton2 then
+		specDrag=false
+		UIS.MouseBehavior=Enum.MouseBehavior.Default
+	end
+end)
 
 lp.CharacterAdded:Connect(function(c) c:WaitForChild("Humanoid");task.wait(0.5)
 	if sOn then apSpd() end;if jOn then apJmp() end;if fOn then startFly() end
@@ -185,7 +194,6 @@ local function mkPList(blk,getTgt,setTgt,onSelect)
 	Pl.PlayerAdded:Connect(function() task.wait(1);bList() end);Pl.PlayerRemoving:Connect(function(p) if getTgt()==p.Name then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end;task.wait(0.1);bList() end)
 	return sL
 end
-
 -- TAB 1: Player
 local b1=mkBlk(1,"Speed",1);do local r=mkRow(b1,1,32);mkL(r,"Enable");mkTog(r,function() sOn=true;apSpd() end,function() sOn=false;local h=H();if h then h.WalkSpeed=16 end end) end;mkPMS(b1,2,16,1,500,1,function(v) sVal=v;if sOn then apSpd() end end)
 local b2=mkBlk(1,"Jump Power",2);do local r=mkRow(b2,1,32);mkL(r,"Enable");mkTog(r,function() jOn=true;apJmp() end,function() jOn=false;local h=H();if h then h.UseJumpPower=true;h.JumpPower=50 end end) end;mkPMS(b2,2,50,1,500,5,function(v) jVal=v;if jOn then apJmp() end end)
