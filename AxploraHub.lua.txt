@@ -106,16 +106,10 @@ UIS.InputChanged:Connect(function(i)
 	end
 end)
 UIS.InputBegan:Connect(function(i)
-	if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then
-		specDrag=true
-		UIS.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
-	end
+	if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=true end
 end)
 UIS.InputEnded:Connect(function(i)
-	if i.UserInputType==Enum.UserInputType.MouseButton2 then
-		specDrag=false
-		UIS.MouseBehavior=Enum.MouseBehavior.Default
-	end
+	if i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=false end
 end)
 
 lp.CharacterAdded:Connect(function(c) c:WaitForChild("Humanoid");task.wait(0.5)
@@ -194,20 +188,6 @@ local function mkPList(blk,getTgt,setTgt,onSelect)
 	Pl.PlayerAdded:Connect(function() task.wait(1);bList() end);Pl.PlayerRemoving:Connect(function(p) if getTgt()==p.Name then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end;task.wait(0.1);bList() end)
 	return sL
 end
--- TAB 1: Player
-local b1=mkBlk(1,"Speed",1);do local r=mkRow(b1,1,32);mkL(r,"Enable");mkTog(r,function() sOn=true;apSpd() end,function() sOn=false;local h=H();if h then h.WalkSpeed=16 end end) end;mkPMS(b1,2,16,1,500,1,function(v) sVal=v;if sOn then apSpd() end end)
-local b2=mkBlk(1,"Jump Power",2);do local r=mkRow(b2,1,32);mkL(r,"Enable");mkTog(r,function() jOn=true;apJmp() end,function() jOn=false;local h=H();if h then h.UseJumpPower=true;h.JumpPower=50 end end) end;mkPMS(b2,2,50,1,500,5,function(v) jVal=v;if jOn then apJmp() end end)
-local b3=mkBlk(1,"Player Fly",3);do local r=mkRow(b3,1,32);mkL(r,"Enable");mkTog(r,function() fOn=true;startFly() end,function() fOn=false;stopFly() end) end;mkPMS(b3,2,120,10,500,10,function(v) fSpd=v end)
-local b4=mkBlk(1,"Fling",4);do local r=mkRow(b4,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end;mkNote(b4,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
-
--- TAB 2: TP
-local bTP=mkBlk(2,"Teleport To Player",1)
-do local r=mkRow(bTP,1,32);mkL(r,"Enable");mkTog(r,function() tOn=true end,function() tOn=false end) end
-mkPList(bTP,function() return tTgt end,function(v) tTgt=v end)
-local rn=mkRow(bTP,4,32);mkL(rn,"Action")
-local tB=Instance.new("TextButton",rn);tB.Size=UDim2.new(0,100,0,22);tB.Position=UDim2.new(0,86,0.5,-11);tB.BackgroundColor3=Color3.fromRGB(91,143,255);tB.BorderSizePixel=0;tB.Text="Teleport Now";tB.TextColor3=Color3.fromRGB(255,255,255);tB.TextSize=11;tB.Font=Enum.Font.Code
-local tSt=tl(rn,"",10,Color3.fromRGB(79,255,176),Enum.TextXAlignment.Left);tSt.Size=UDim2.new(0,60,0,22);tSt.Position=UDim2.new(0,192,0.5,-11)
-tB.MouseButton1Click:Connect(function() if not tTgt then tSt.Text="⚠ เลือกก่อน";tSt.TextColor3=Color3.fromRGB(255,90,90);task.delay(1.5,function() tSt.Text="" end);return end;doTP();tSt.Text="✓ วาปแล้ว";tSt.TextColor3=Color3.fromRGB(79,255,176);task.delay(1.5,function() tSt.Text="" end) end)
 
 -- TAB 3: ป้องกัน
 local bNC=mkBlk(3,"Noclip",1);do local r=mkRow(bNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end;mkNote(bNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
