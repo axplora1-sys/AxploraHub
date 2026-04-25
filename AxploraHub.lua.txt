@@ -6,8 +6,7 @@ local ncOn,afOn,alOn,espOn,specOn,specTgt=false,false,false,false,false,nil
 local fBV,fBG,ncC,afC,alC=nil,nil,nil,nil,nil
 local safePos,lastSafe=nil,0
 local ESP_TOOL,ESP_DEF,ESP_DGR="Knife",Color3.fromRGB(255,255,255),Color3.fromRGB(255,0,0)
-local specDist,specAngleX,specAngleY=10,0,0
-local specDrag=false
+local specDist,specAngleX,specAngleY,specDrag=10,0,0,false
 
 local H=function() local c=lp.Character;return c and c:FindFirstChildOfClass("Humanoid") end
 local R=function() local c=lp.Character;return c and c:FindFirstChild("HumanoidRootPart") end
@@ -47,7 +46,6 @@ local function startAL() alC=RS.Heartbeat:Connect(function() local r=R();if not 
 	if r.Velocity.Magnitude>350 and safePos then r.CFrame=safePos;r.Velocity=Vector3.zero end end) end
 local function stopAL() if alC then alC:Disconnect();alC=nil end end
 
--- ESP
 local function setESPColor(char,col) pcall(function()
 	local hl=char:FindFirstChild("ESPHighlight");if hl then hl.FillColor=col end
 	local g=char:FindFirstChild("ESP_Gui");if g and g:FindFirstChild("TextLabel") then g.TextLabel.TextColor3=col end
@@ -73,20 +71,18 @@ local function startESP() task.spawn(function() while espOn do
 	end) end end;task.wait(1) end
 	for _,p in pairs(Pl:GetPlayers()) do if p~=lp and p.Character then removeESP(p.Character) end end end) end
 
--- Spectate (3rd person, zoom + rotate)
 local function startSpec()
-	local origType=cam.CameraType
 	cam.CameraType=Enum.CameraType.Scriptable
 	task.spawn(function() while specOn do
 		local t=Pl:FindFirstChild(specTgt);local tc=t and t.Character;local tr=tc and tc:FindFirstChild("HumanoidRootPart")
 		if tr then
-			local ox=math.cos(specAngleY)*math.cos(specAngleX)
+			local ox=math.cos(specAngleX)*math.sin(specAngleY)
 			local oy=math.sin(specAngleX)
-			local oz=math.sin(specAngleY)*math.cos(specAngleX)
+			local oz=math.cos(specAngleX)*math.cos(specAngleY)
 			local offset=Vector3.new(ox,oy,oz)*specDist
 			cam.CFrame=CFrame.lookAt(tr.Position+offset,tr.Position)
 		end;task.wait() end
-		cam.CameraType=origType
+		cam.CameraType=Enum.CameraType.Custom
 		local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end end)
 end
 local function stopSpec()
@@ -94,7 +90,7 @@ local function stopSpec()
 	local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end
 end
 
--- Spectate controls
+-- Spectate input (ไม่ล็อก mouse)
 UIS.InputChanged:Connect(function(i)
 	if not specOn then return end
 	if i.UserInputType==Enum.UserInputType.MouseWheel then
@@ -105,12 +101,8 @@ UIS.InputChanged:Connect(function(i)
 		specAngleX=math.clamp(specAngleX-i.Delta.Y*0.005,-1.4,1.4)
 	end
 end)
-UIS.InputBegan:Connect(function(i)
-	if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=true end
-end)
-UIS.InputEnded:Connect(function(i)
-	if i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=false end
-end)
+UIS.InputBegan:Connect(function(i) if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=true end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=false end end)
 
 lp.CharacterAdded:Connect(function(c) c:WaitForChild("Humanoid");task.wait(0.5)
 	if sOn then apSpd() end;if jOn then apJmp() end;if fOn then startFly() end
@@ -170,7 +162,7 @@ local function mkPMS(p,order,def,mn,mx,stp,cb)
 	UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
 	UIS.InputChanged:Connect(function(i) if drag and i.UserInputType==Enum.UserInputType.MouseMovement then set(mn+(math.clamp((i.Position.X-sbg.AbsolutePosition.X)/sbg.AbsoluteSize.X,0,1))*(mx-mn)) end end)
 end
-local function mkPList(blk,getTgt,setTgt,onSelect)
+local function mkPList(blk,getTgt,setTgt)
 	local rs=mkRow(blk,2,32);mkL(rs,"Target")
 	local sL=Instance.new("TextLabel",rs);sL.Size=UDim2.new(0,148,0,20);sL.Position=UDim2.new(0,86,0.5,-10);sL.BackgroundColor3=Color3.fromRGB(20,20,20);sL.BorderSizePixel=1;sL.BorderColor3=Color3.fromRGB(40,40,40);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115);sL.TextSize=11;sL.Font=Enum.Font.Code
 	local rl=mkRow(blk,3,110);local pSF=Instance.new("ScrollingFrame",rl)
@@ -179,15 +171,30 @@ local function mkPList(blk,getTgt,setTgt,onSelect)
 	local function bList() for _,c in ipairs(pSF:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end
 		local cnt=0;for _,p in ipairs(Pl:GetPlayers()) do if p~=lp then cnt+=1
 			local b=Instance.new("TextButton",pSF);b.Size=UDim2.new(1,0,0,26);b.BackgroundColor3=getTgt()==p.Name and Color3.fromRGB(34,50,80) or Color3.fromRGB(24,24,24);b.BorderSizePixel=0;b.LayoutOrder=cnt;b.Text="  "..p.Name;b.TextColor3=getTgt()==p.Name and Color3.fromRGB(91,143,255) or Color3.fromRGB(185,185,185);b.TextSize=11;b.Font=Enum.Font.Code;b.TextXAlignment=Enum.TextXAlignment.Left
-			b.MouseButton1Click:Connect(function() setTgt(p.Name);sL.Text=p.Name;sL.TextColor3=Color3.fromRGB(255,255,255);bList();if onSelect then onSelect() end end)
+			b.MouseButton1Click:Connect(function() setTgt(p.Name);sL.Text=p.Name;sL.TextColor3=Color3.fromRGB(255,255,255);bList() end)
 		end end
 		if cnt==0 then local nl=Instance.new("TextLabel",pSF);nl.Size=UDim2.new(1,0,0,26);nl.BackgroundTransparency=1;nl.Text="  (ไม่มีผู้เล่นอื่น)";nl.TextColor3=Color3.fromRGB(72,72,72);nl.TextSize=11;nl.Font=Enum.Font.Code;nl.TextXAlignment=Enum.TextXAlignment.Left end
 	end
 	bList()
 	task.spawn(function() while true do task.wait(2);bList();if getTgt() and not Pl:FindFirstChild(getTgt()) then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end end end)
-	Pl.PlayerAdded:Connect(function() task.wait(1);bList() end);Pl.PlayerRemoving:Connect(function(p) if getTgt()==p.Name then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end;task.wait(0.1);bList() end)
-	return sL
+	Pl.PlayerAdded:Connect(function() task.wait(1);bList() end)
+	Pl.PlayerRemoving:Connect(function(p) if getTgt()==p.Name then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end;task.wait(0.1);bList() end)
 end
+
+-- TAB 1: Player
+local b1=mkBlk(1,"Speed",1);do local r=mkRow(b1,1,32);mkL(r,"Enable");mkTog(r,function() sOn=true;apSpd() end,function() sOn=false;local h=H();if h then h.WalkSpeed=16 end end) end;mkPMS(b1,2,16,1,500,1,function(v) sVal=v;if sOn then apSpd() end end)
+local b2=mkBlk(1,"Jump Power",2);do local r=mkRow(b2,1,32);mkL(r,"Enable");mkTog(r,function() jOn=true;apJmp() end,function() jOn=false;local h=H();if h then h.UseJumpPower=true;h.JumpPower=50 end end) end;mkPMS(b2,2,50,1,500,5,function(v) jVal=v;if jOn then apJmp() end end)
+local b3=mkBlk(1,"Player Fly",3);do local r=mkRow(b3,1,32);mkL(r,"Enable");mkTog(r,function() fOn=true;startFly() end,function() fOn=false;stopFly() end) end;mkPMS(b3,2,120,10,500,10,function(v) fSpd=v end)
+local b4=mkBlk(1,"Fling",4);do local r=mkRow(b4,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end;mkNote(b4,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
+
+-- TAB 2: TP
+local bTP=mkBlk(2,"Teleport To Player",1)
+do local r=mkRow(bTP,1,32);mkL(r,"Enable");mkTog(r,function() tOn=true end,function() tOn=false end) end
+mkPList(bTP,function() return tTgt end,function(v) tTgt=v end)
+local rn=mkRow(bTP,4,32);mkL(rn,"Action")
+local tB=Instance.new("TextButton",rn);tB.Size=UDim2.new(0,100,0,22);tB.Position=UDim2.new(0,86,0.5,-11);tB.BackgroundColor3=Color3.fromRGB(91,143,255);tB.BorderSizePixel=0;tB.Text="Teleport Now";tB.TextColor3=Color3.fromRGB(255,255,255);tB.TextSize=11;tB.Font=Enum.Font.Code
+local tSt=tl(rn,"",10,Color3.fromRGB(79,255,176),Enum.TextXAlignment.Left);tSt.Size=UDim2.new(0,60,0,22);tSt.Position=UDim2.new(0,192,0.5,-11)
+tB.MouseButton1Click:Connect(function() if not tTgt then tSt.Text="⚠ เลือกก่อน";tSt.TextColor3=Color3.fromRGB(255,90,90);task.delay(1.5,function() tSt.Text="" end);return end;doTP();tSt.Text="✓ วาปแล้ว";tSt.TextColor3=Color3.fromRGB(79,255,176);task.delay(1.5,function() tSt.Text="" end) end)
 
 -- TAB 3: ป้องกัน
 local bNC=mkBlk(3,"Noclip",1);do local r=mkRow(bNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end;mkNote(bNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
@@ -209,7 +216,7 @@ end;mkNote(bET,2,"ชื่อ Tool ที่จะเปลี่ยนสี�
 local bSP=mkBlk(6,"Spectate",1)
 do local r=mkRow(bSP,1,32);mkL(r,"Enable");mkTog(r,function() if specTgt then specOn=true;startSpec() end end,function() specOn=false;stopSpec() end) end
 mkPList(bSP,function() return specTgt end,function(v) specTgt=v end)
-mkNote(bSP,4,"คลิกขวาค้างเพื่อหมุน  |  Scroll เพื่อซูม")
+mkNote(bSP,4,"คลิกขวาค้าง+ลาก=หมุน  |  Scroll=ซูม")
 
 local pOpen=true
 OB.MouseButton1Click:Connect(function() pOpen=not pOpen;P.Visible=pOpen;OB.Text=pOpen and "◀" or "▶";OB.TextColor3=pOpen and Color3.fromRGB(91,143,255) or Color3.fromRGB(110,110,110) end)
