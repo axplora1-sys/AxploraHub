@@ -89,7 +89,7 @@ local sl=Instance.new("UIListLayout",SC);sl.SortOrder=Enum.SortOrder.LayoutOrder
 local sp=Instance.new("UIPadding",SC);sp.PaddingTop=UDim.new(0,5);sp.PaddingBottom=UDim.new(0,5);sp.PaddingLeft=UDim.new(0,5);sp.PaddingRight=UDim.new(0,5)
 
 -- Tabs
-local TABS={"Player","TP","ป้องกัน","Setting"};local tBtns={};local aBlk={{},{},{},{}};local tw=math.floor(260/#TABS)
+local TABS={"Player","TP","ป้องกัน","Setting","ESP"};local tBtns={};local aBlk={{},{},{},{},{}};local tw=math.floor(260/#TABS)
 local function swTab(i)
 	for ti,list in ipairs(aBlk) do for _,b in ipairs(list) do b.Visible=(ti==i) end end
 	for j,t in ipairs(tBtns) do t.b.TextColor3=(j==i) and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,80);t.l.Visible=(j==i) end
@@ -228,7 +228,64 @@ mkNote(bAL,2,"วาปกลับจุดเดิมเมื่อโดน
 -- TAB 4: Setting
 local bSNC=mkBlk(4,"Noclip",1);do local r=mkRow(bSNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end
 mkNote(bSNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
+local bSFL=mkBlk(4,"Fling",2);do local r=mkRow(bSFL,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end
+mkNote(bSFL,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
 
--- Open/Close
-local pOpen=true
-OB.MouseButton1Click:Connect(function() pOpen=not pOpen;P.Visible=pOpen;OB.Text=pOpen and "◀" or "▶";OB.TextColor3=pOpen and Color3.fromRGB(91,143,255) or Color3.fromRGB(110,110,110) end)
+-- ============================================================
+-- ESP LOGIC
+-- ============================================================
+local espOn=false;local espThread=nil
+
+local ESP_DEF=Color3.fromRGB(255,255,255)
+local ESP_DGR=Color3.fromRGB(255,0,0)
+local ESP_TOOL="Knife"
+
+local function setESPColor(char,color)
+	pcall(function()
+		local hl=char:FindFirstChild("ESPHighlight");if hl then hl.FillColor=color end
+		local gui=char:FindFirstChild("ESP_Gui");if gui and gui:FindFirstChild("TextLabel") then gui.TextLabel.TextColor3=color end
+		for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" and v:IsA("SphereHandleAdornment") then v.Color3=color end end
+	end)
+end
+
+local function removeESP(char)
+	pcall(function()
+		for _,n in pairs({"ESPHighlight","ESP_Gui"}) do local x=char:FindFirstChild(n);if x then x:Destroy() end end
+		for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" then v:Destroy() end end
+	end)
+end
+
+local function createESP(p,char)
+	if not char or not char.Parent then return end
+	if char:FindFirstChild("ESPHighlight") then return end
+	local hum=char:FindFirstChildOfClass("Humanoid");local head=char:FindFirstChild("Head")
+	if not hum or not head then return end
+	local hl=Instance.new("Highlight");hl.Name="ESPHighlight";hl.FillColor=ESP_DEF
+	hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop;hl.FillTransparency=0.6;hl.Parent=char
+	local gui=Instance.new("BillboardGui");gui.Name="ESP_Gui";gui.Size=UDim2.new(0,200,0,50)
+	gui.AlwaysOnTop=true;gui.ExtentsOffset=Vector3.new(0,3,0);gui.Adornee=head;gui.Parent=char
+	local label=Instance.new("TextLabel",gui);label.Size=UDim2.new(1,0,1,0)
+	label.BackgroundTransparency=1;label.TextScaled=true;label.Font=Enum.Font.SourceSansBold;label.TextStrokeTransparency=0
+	local parts=(hum.RigType==Enum.HumanoidRigType.R15) and {"Head","UpperTorso","LowerTorso","LeftUpperArm","RightUpperArm","LeftUpperLeg","RightUpperLeg"} or {"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
+	for _,name in pairs(parts) do
+		local part=char:FindFirstChild(name)
+		if part then local s=Instance.new("SphereHandleAdornment");s.Name="JointESP";s.Adornee=part;s.AlwaysOnTop=true;s.ZIndex=10;s.Size=Vector3.new(1.1,1.1,1.1);s.Color3=ESP_DEF;s.Transparency=0.5;s.Parent=part end
+	end
+end
+
+local function startESP()
+	espThread=task.spawn(function()
+		while espOn do
+			for _,p in pairs(Pl:GetPlayers()) do
+				if p~=lp then
+					task.spawn(function()
+						local char=p.Character
+						if char and char.Parent then
+							createESP(p,char)
+							local hum=char:FindFirstChildOfClass("Humanoid");local gui=char:FindFirstChild("ESP_Gui")
+							if hum and gui then
+								local label=gui:FindFirstChild("TextLabel")
+								if label then label.Text=string.format("%s\n%.0f/%.0f",p.Name,hum.Health,hum.MaxHealth) end
+								local bp=p:FindFirstChild("Backpack")
+								local hasT=char:FindFirstChild(ESP_TOOL) or (bp and bp:FindFirstChild(ESP_TOOL))
+								setESPColor(char,ha
