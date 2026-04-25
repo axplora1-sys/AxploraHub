@@ -288,4 +288,38 @@ local function startESP()
 								if label then label.Text=string.format("%s\n%.0f/%.0f",p.Name,hum.Health,hum.MaxHealth) end
 								local bp=p:FindFirstChild("Backpack")
 								local hasT=char:FindFirstChild(ESP_TOOL) or (bp and bp:FindFirstChild(ESP_TOOL))
-								setESPColor(char,ha
+								setESPColor(char,hasT and ESP_DGR or ESP_DEF)
+							end
+						end
+					end)
+				end
+			end
+			task.wait(1)
+		end
+		-- ปิด ESP ล้างทั้งหมด
+		for _,p in pairs(Pl:GetPlayers()) do if p~=lp and p.Character then removeESP(p.Character) end end
+	end)
+end
+
+-- TAB 5: ESP
+local bESP=mkBlk(5,"ESP",1)
+do
+	local r=mkRow(bESP,1,32);mkL(r,"Enable")
+	mkTog(r,function() espOn=true;startESP() end,function() espOn=false end)
+end
+mkNote(bESP,2,"แสดง HP ชื่อ และไฮไลต์ผู้เล่น")
+
+-- Tool name row
+local bET=mkBlk(5,"Danger Tool",2)
+do
+	local r=mkRow(bET,1,32);mkL(r,"Tool Name")
+	local nb=Instance.new("TextBox",r);nb.Size=UDim2.new(0,110,0,22);nb.Position=UDim2.new(0,86,0.5,-11)
+	nb.BackgroundColor3=Color3.fromRGB(14,14,14);nb.BorderSizePixel=1;nb.BorderColor3=Color3.fromRGB(40,40,40)
+	nb.Text=ESP_TOOL;nb.TextColor3=Color3.fromRGB(255,255,255);nb.TextSize=12;nb.Font=Enum.Font.Code;nb.ClearTextOnFocus=false
+	nb.FocusLost:Connect(function() if nb.Text~="" then ESP_TOOL=nb.Text end end)
+end
+mkNote(bET,2,"ชื่อ Tool ที่จะเปลี่ยนสีเป็นแดง")
+
+-- Open/Close
+local pOpen=true
+OB.MouseButton1Click:Connect(function() pOpen=not pOpen;P.Visible=pOpen;OB.Text=pOpen and "◀" or "▶";OB.TextColor3=pOpen and Color3.fromRGB(91,143,255) or Color3.fromRGB(110,110,110) end)
