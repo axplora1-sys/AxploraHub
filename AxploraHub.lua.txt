@@ -1,104 +1,429 @@
 -- Axplora Hub v0.1 | LocalScript > StarterPlayerScripts
 local Pl,RS,TS,UIS=game:GetService("Players"),game:GetService("RunService"),game:GetService("TweenService"),game:GetService("UserInputService")
 local lp,cam=Pl.LocalPlayer,workspace.CurrentCamera
+
+-- STATE
 local sOn,sVal,jOn,jVal,fOn,fSpd,flOn,tOn,tTgt=false,16,false,50,false,120,false,false,nil
 local ncOn,afOn,alOn,espOn,specOn,specTgt=false,false,false,false,false,nil
 local fBV,fBG,ncC,afC,alC=nil,nil,nil,nil,nil
 local safePos,lastSafe=nil,0
-local ESP_TOOL1,ESP_TOOL2="Knife","Gun"
-local ESP_DEF=Color3.fromRGB(255,255,255);local ESP_DGR=Color3.fromRGB(255,0,0);local ESP_GUN=Color3.fromRGB(0,170,255)
-local specDist,specAngleX,specAngleY,specDrag=10,0,0,false
+local ESP_T1,ESP_T2="Knife","Gun"
+local ESP_DEF=Color3.fromRGB(255,255,255)
+local ESP_DGR=Color3.fromRGB(255,0,0)
+local ESP_GUN=Color3.fromRGB(0,170,255)
+local specDist,specAX,specAY,specDrag=10,0,0,false
 
-local H=function() local c=lp.Character;return c and c:FindFirstChildOfClass("Humanoid") end
-local R=function() local c=lp.Character;return c and c:FindFirstChild("HumanoidRootPart") end
+-- HELPERS
+local function H() local c=lp.Character;return c and c:FindFirstChildOfClass("Humanoid") end
+local function R() local c=lp.Character;return c and c:FindFirstChild("HumanoidRootPart") end
+
+-- SPEED / JUMP
 local function apSpd() local h=H();if h then h.WalkSpeed=sVal end end
 local function apJmp() local h=H();if h then h.UseJumpPower=true;h.JumpPower=jVal end end
 
+-- FLY
 local function startFly()
 	local c=lp.Character;if not c then return end
-	local r=c:FindFirstChild("HumanoidRootPart");local h=c:FindFirstChildOfClass("Humanoid");if not r or not h then return end
+	local r=c:FindFirstChild("HumanoidRootPart");local h=c:FindFirstChildOfClass("Humanoid")
+	if not r or not h then return end
 	h:ChangeState(Enum.HumanoidStateType.Physics)
 	for _,v in pairs(r:GetChildren()) do if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end end
 	fBV=Instance.new("BodyVelocity",r);fBV.MaxForce=Vector3.new(1e9,1e9,1e9);fBV.Velocity=Vector3.zero
 	fBG=Instance.new("BodyGyro",r);fBG.MaxTorque=Vector3.new(1e9,1e9,1e9);fBG.P=9e4
-	task.spawn(function() while fOn and c.Parent do
-		local md=h.MoveDirection;local cf=cam.CFrame
-		if md.Magnitude>0 then local lm=cf:VectorToObjectSpace(md);local d=cf.LookVector*-lm.Z+cf.RightVector*lm.X;if d.Magnitude>0 then fBV.Velocity=d.Unit*fSpd end else fBV.Velocity=Vector3.zero end
-		fBG.CFrame=cf;task.wait() end end)
+	task.spawn(function()
+		while fOn and c.Parent do
+			local md=h.MoveDirection;local cf=cam.CFrame
+			if md.Magnitude>0 then
+				local lm=cf:VectorToObjectSpace(md)
+				local d=cf.LookVector*-lm.Z+cf.RightVector*lm.X
+				if d.Magnitude>0 then fBV.Velocity=d.Unit*fSpd end
+			else fBV.Velocity=Vector3.zero end
+			fBG.CFrame=cf;task.wait()
+		end
+	end)
 end
 local function stopFly()
-	local r=R();if r then for _,v in pairs(r:GetChildren()) do if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end end end
-	local h=H();if h then h:ChangeState(Enum.HumanoidStateType.GettingUp) end;fBV=nil;fBG=nil
+	local r=R()
+	if r then for _,v in pairs(r:GetChildren()) do if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end end end
+	local h=H();if h then h:ChangeState(Enum.HumanoidStateType.GettingUp) end
+	fBV=nil;fBG=nil
 end
-local function startFling() task.spawn(function() local ml=0.1;while flOn do RS.Heartbeat:Wait();local r=R()
-	if r then local v=r.Velocity;r.Velocity=v*10000+Vector3.new(0,10000,0);RS.RenderStepped:Wait();r.Velocity=v;RS.Stepped:Wait();r.Velocity=v+Vector3.new(0,ml,0);ml=-ml end end end) end
-local function doTP() if not tTgt then return end;local t=Pl:FindFirstChild(tTgt);if not t then return end
-	local mc,tc=lp.Character,t.Character;if not mc or not tc then return end
-	local mr,tr=mc:FindFirstChild("HumanoidRootPart"),tc:FindFirstChild("HumanoidRootPart")
-	if mr and tr then mr.CFrame=tr.CFrame*CFrame.new(0,0,3) end end
+
+-- FLING
+local function startFling()
+	task.spawn(function()
+		local ml=0.1
+		while flOn do
+			RS.Heartbeat:Wait()
+			local r=R()
+			if r then
+				local v=r.Velocity
+				r.Velocity=v*10000+Vector3.new(0,10000,0)
+				RS.RenderStepped:Wait()
+				r.Velocity=v
+				RS.Stepped:Wait()
+				r.Velocity=v+Vector3.new(0,ml,0)
+				ml=-ml
+			end
+		end
+	end)
+end
+
+-- TELEPORT
+local function doTP()
+	if not tTgt then return end
+	local t=Pl:FindFirstChild(tTgt);if not t then return end
+	local mc=lp.Character;local tc=t.Character
+	if not mc or not tc then return end
+	local mr=mc:FindFirstChild("HumanoidRootPart")
+	local tr=tc:FindFirstChild("HumanoidRootPart")
+	if mr and tr then mr.CFrame=tr.CFrame*CFrame.new(0,0,3) end
+end
 task.spawn(function() while true do task.wait(0.1);if tOn then doTP() end end end)
-local function startNC() ncC=RS.Stepped:Connect(function() local c=lp.Character;if not c then return end
-	for _,v in pairs(c:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide=false end end end) end
+
+-- NOCLIP
+local function startNC()
+	ncC=RS.Stepped:Connect(function()
+		local c=lp.Character;if not c then return end
+		for _,v in pairs(c:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide=false end end
+	end)
+end
 local function stopNC() if ncC then ncC:Disconnect();ncC=nil end end
-local function startAF() afC=RS.Heartbeat:Connect(function() local r=R();if r and r.Velocity.Magnitude>300 then r.Velocity=Vector3.zero end end) end
+
+-- ANTI-FLING
+local function startAF()
+	afC=RS.Heartbeat:Connect(function()
+		local r=R();if r and r.Velocity.Magnitude>300 then r.Velocity=Vector3.zero end
+	end)
+end
 local function stopAF() if afC then afC:Disconnect();afC=nil end end
-local function startAL() alC=RS.Heartbeat:Connect(function() local r=R();if not r then return end;local now=tick()
-	if r.Velocity.Magnitude<100 and (now-lastSafe)>0.5 then safePos=r.CFrame;lastSafe=now end
-	if r.Velocity.Magnitude>350 and safePos then r.CFrame=safePos;r.Velocity=Vector3.zero end end) end
+
+-- ANTI-LAUNCH
+local function startAL()
+	alC=RS.Heartbeat:Connect(function()
+		local r=R();if not r then return end
+		local now=tick()
+		if r.Velocity.Magnitude<100 and (now-lastSafe)>0.5 then safePos=r.CFrame;lastSafe=now end
+		if r.Velocity.Magnitude>350 and safePos then r.CFrame=safePos;r.Velocity=Vector3.zero end
+	end)
+end
 local function stopAL() if alC then alC:Disconnect();alC=nil end end
 
-local function setESPColor(char,col) pcall(function()
-	local hl=char:FindFirstChild("ESPHighlight");if hl then hl.FillColor=col end
-	local g=char:FindFirstChild("ESP_Gui");if g and g:FindFirstChild("TextLabel") then g.TextLabel.TextColor3=col end
-	for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" and v:IsA("SphereHandleAdornment") then v.Color3=col end end end) end
-local function getESPColor(p,char) local bp=p:FindFirstChild("Backpack")
-	if char:FindFirstChild(ESP_TOOL2) or (bp and bp:FindFirstChild(ESP_TOOL2)) then return ESP_GUN end
-	if char:FindFirstChild(ESP_TOOL1) or (bp and bp:FindFirstChild(ESP_TOOL1)) then return ESP_DGR end
-	return ESP_DEF end
-local function removeESP(char) pcall(function()
-	for _,n in pairs({"ESPHighlight","ESP_Gui"}) do local x=char:FindFirstChild(n);if x then x:Destroy() end end
-	for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" then v:Destroy() end end end) end
+-- ESP
+local function setESPColor(char,col)
+	pcall(function()
+		local hl=char:FindFirstChild("ESPHighlight");if hl then hl.FillColor=col end
+		local g=char:FindFirstChild("ESP_Gui")
+		if g and g:FindFirstChild("TextLabel") then g.TextLabel.TextColor3=col end
+		for _,v in pairs(char:GetDescendants()) do
+			if v.Name=="JointESP" and v:IsA("SphereHandleAdornment") then v.Color3=col end
+		end
+	end)
+end
+local function removeESP(char)
+	pcall(function()
+		for _,n in pairs({"ESPHighlight","ESP_Gui"}) do local x=char:FindFirstChild(n);if x then x:Destroy() end end
+		for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" then v:Destroy() end end
+	end)
+end
 local function createESP(p,char)
 	if not char or not char.Parent or char:FindFirstChild("ESPHighlight") then return end
-	local hum=char:FindFirstChildOfClass("Humanoid");local head=char:FindFirstChild("Head");if not hum or not head then return end
-fromRGB(255,255,255);nb.TextSize=12;nb.Font=Enum.Font.Code;nb.ClearTextOnFocus=false
+	local hum=char:FindFirstChildOfClass("Humanoid");local head=char:FindFirstChild("Head")
+	if not hum or not head then return end
+	local hl=Instance.new("Highlight",char)
+	hl.Name="ESPHighlight";hl.FillColor=ESP_DEF
+	hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop;hl.FillTransparency=0.6
+	local gui=Instance.new("BillboardGui",char)
+	gui.Name="ESP_Gui";gui.Size=UDim2.new(0,200,0,50)
+	gui.AlwaysOnTop=true;gui.ExtentsOffset=Vector3.new(0,3,0);gui.Adornee=head
+	local lbl=Instance.new("TextLabel",gui)
+	lbl.Size=UDim2.new(1,0,1,0);lbl.BackgroundTransparency=1
+	lbl.TextScaled=true;lbl.Font=Enum.Font.SourceSansBold;lbl.TextStrokeTransparency=0
+	local parts=(hum.RigType==Enum.HumanoidRigType.R15)
+		and {"Head","UpperTorso","LowerTorso","LeftUpperArm","RightUpperArm","LeftUpperLeg","RightUpperLeg"}
+		or {"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
+	for _,name in pairs(parts) do
+		local pt=char:FindFirstChild(name)
+		if pt then
+			local s=Instance.new("SphereHandleAdornment",pt)
+			s.Name="JointESP";s.Adornee=pt;s.AlwaysOnTop=true
+			s.ZIndex=10;s.Size=Vector3.new(1.1,1.1,1.1);s.Transparency=0.5
+		end
+	end
+end
+local function getESPCol(p,char)
+	local bp=p:FindFirstChild("Backpack")
+	if char:FindFirstChild(ESP_T2) or (bp and bp:FindFirstChild(ESP_T2)) then return ESP_GUN end
+	if char:FindFirstChild(ESP_T1) or (bp and bp:FindFirstChild(ESP_T1)) then return ESP_DGR end
+	return ESP_DEF
+end
+local function startESP()
+	task.spawn(function()
+		while espOn do
+			for _,p in pairs(Pl:GetPlayers()) do
+				if p~=lp then
+					task.spawn(function()
+						local char=p.Character;if not char or not char.Parent then return end
+						createESP(p,char)
+						local hum=char:FindFirstChildOfClass("Humanoid")
+						local gui=char:FindFirstChild("ESP_Gui")
+						if hum and gui then
+							local lbl=gui:FindFirstChild("TextLabel")
+							if lbl then lbl.Text=string.format("%s\n%.0f/%.0f",p.Name,hum.Health,hum.MaxHealth) end
+							setESPColor(char,getESPCol(p,char))
+						end
+					end)
+				end
+			end
+			task.wait(1)
+		end
+		for _,p in pairs(Pl:GetPlayers()) do if p~=lp and p.Character then removeESP(p.Character) end end
+	end)
+end
+
+-- SPECTATE
+local function startSpec()
+	cam.CameraType=Enum.CameraType.Scriptable
+	task.spawn(function()
+		while specOn do
+			local t=Pl:FindFirstChild(specTgt)
+			local tc=t and t.Character
+			local tr=tc and tc:FindFirstChild("HumanoidRootPart")
+			if tr then
+				local ox=math.cos(specAX)*math.sin(specAY)
+				local oy=math.sin(specAX)
+				local oz=math.cos(specAX)*math.cos(specAY)
+				cam.CFrame=CFrame.lookAt(tr.Position+Vector3.new(ox,oy,oz)*specDist,tr.Position)
+			end
+			task.wait()
+		end
+		cam.CameraType=Enum.CameraType.Custom
+		local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end
+	end)
+end
+local function stopSpec()
+	specOn=false;cam.CameraType=Enum.CameraType.Custom
+	local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end
+end
+
+-- Spectate mouse input
+UIS.InputChanged:Connect(function(i)
+	if not specOn then return end
+	if i.UserInputType==Enum.UserInputType.MouseWheel then
+		specDist=math.clamp(specDist-i.Position.Z*2,3,60)
+	end
+	if specDrag and i.UserInputType==Enum.UserInputType.MouseMovement then
+		specAY=specAY+i.Delta.X*0.005
+		specAX=math.clamp(specAX-i.Delta.Y*0.005,-1.4,1.4)
+	end
+end)
+UIS.InputBegan:Connect(function(i) if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=true end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=false end end)
+
+-- RESPAWN
+lp.CharacterAdded:Connect(function(c)
+	c:WaitForChild("Humanoid");task.wait(0.5)
+	if sOn then apSpd() end;if jOn then apJmp() end;if fOn then startFly() end
+	if ncOn then startNC() end;if afOn then startAF() end;if alOn then startAL() end
+end)
+
+-- ============================================================
+-- GUI
+-- ============================================================
+local SG=Instance.new("ScreenGui")
+SG.Name="AxploraHub";SG.ResetOnSpawn=false;SG.Parent=lp.PlayerGui
+
+-- Open button
+local OB=Instance.new("TextButton",SG)
+OB.Size=UDim2.new(0,28,0,60);OB.Position=UDim2.new(0,0,0.5,-30)
+OB.BackgroundColor3=Color3.fromRGB(26,26,26);OB.BorderSizePixel=1;OB.BorderColor3=Color3.fromRGB(60,60,60)
+OB.Text="◀";OB.TextColor3=Color3.fromRGB(91,143,255);OB.TextSize=13;OB.Font=Enum.Font.Code;OB.ZIndex=20
+OB.Visible=false
+
+-- Main panel
+local P=Instance.new("Frame",SG)
+P.Size=UDim2.new(0,260,0,460);P.Position=UDim2.new(0,-260,0.5,-230)
+P.BackgroundColor3=Color3.fromRGB(17,17,17);P.BorderSizePixel=1;P.BorderColor3=Color3.fromRGB(50,50,50)
+P.Active=true;P.Draggable=true;P.Visible=false
+
+-- GUI helpers
+local function fr(p,bg,sz,pos)
+	local f=Instance.new("Frame",p);f.BackgroundColor3=bg;f.BorderSizePixel=0
+	if sz then f.Size=sz end;if pos then f.Position=pos end;return f
+end
+local function tl(p,txt,sz,col,xa)
+	local l=Instance.new("TextLabel",p);l.BackgroundTransparency=1
+	l.Text=txt;l.TextSize=sz;l.Font=Enum.Font.Code;l.TextColor3=col
+	if xa then l.TextXAlignment=xa end;return l
+end
+
+-- Title
+do
+	local tb=fr(P,Color3.fromRGB(24,24,24),UDim2.new(1,0,0,26),UDim2.new(0,0,0,0))
+	local t=tl(tb,"Axplora Hub  |  v0.1",11,Color3.fromRGB(210,210,210),Enum.TextXAlignment.Left)
+	t.Size=UDim2.new(1,-8,1,0);t.Position=UDim2.new(0,8,0,0)
+	fr(tb,Color3.fromRGB(50,50,50),UDim2.new(1,0,0,1),UDim2.new(0,0,1,0))
+end
+
+-- Tab bar
+local TAB=fr(P,Color3.fromRGB(20,20,20),UDim2.new(1,0,0,24),UDim2.new(0,0,0,26))
+fr(TAB,Color3.fromRGB(50,50,50),UDim2.new(1,0,0,1),UDim2.new(0,0,1,-1))
+
+-- Scroll
+local SC=Instance.new("ScrollingFrame",P)
+SC.Size=UDim2.new(1,0,1,-50);SC.Position=UDim2.new(0,0,0,50)
+SC.BackgroundTransparency=1;SC.BorderSizePixel=0
+SC.ScrollBarThickness=4;SC.ScrollBarImageColor3=Color3.fromRGB(70,70,70)
+SC.CanvasSize=UDim2.new(0,0,0,0);SC.AutomaticCanvasSize=Enum.AutomaticSize.Y
+do local l=Instance.new("UIListLayout",SC);l.SortOrder=Enum.SortOrder.LayoutOrder;l.Padding=UDim.new(0,4) end
+do local p=Instance.new("UIPadding",SC);p.PaddingTop=UDim.new(0,5);p.PaddingBottom=UDim.new(0,5);p.PaddingLeft=UDim.new(0,5);p.PaddingRight=UDim.new(0,5) end
+
+-- Tab system
+local TABS={"Player","TP","ป้องกัน","Setting","ESP","Spec"}
+local tBtns={};local aBlk={{},{},{},{},{},{}};local tw=math.floor(260/#TABS)
+local function swTab(i)
+	for ti,list in ipairs(aBlk) do for _,b in ipairs(list) do b.Visible=(ti==i) end end
+	for j,t in ipairs(tBtns) do t.b.TextColor3=(j==i) and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,80);t.l.Visible=(j==i) end
+	SC.CanvasPosition=Vector2.zero
+end
+for i,name in ipairs(TABS) do
+	local b=Instance.new("TextButton",TAB)
+	b.Size=UDim2.new(0,tw,1,-2);b.Position=UDim2.new(0,(i-1)*tw,0,1)
+	b.BackgroundTransparency=1;b.BorderSizePixel=0;b.Text=name;b.TextSize=10;b.Font=Enum.Font.Code
+	b.TextColor3=(i==1) and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,80)
+	local ul=fr(b,Color3.fromRGB(91,143,255),UDim2.new(1,0,0,2),UDim2.new(0,0,1,-1));ul.Visible=(i==1)
+	tBtns[i]={b=b,l=ul};local idx=i;b.MouseButton1Click:Connect(function() swTab(idx) end)
+end
+
+-- Widget builders
+local function mkBlk(ti,title,order)
+	local f=Instance.new("Frame",SC)
+	f.Size=UDim2.new(1,0,0,0);f.AutomaticSize=Enum.AutomaticSize.Y
+	f.BackgroundColor3=Color3.fromRGB(26,26,26);f.BorderSizePixel=1;f.BorderColor3=Color3.fromRGB(42,42,42)
+	f.LayoutOrder=order;f.Visible=(ti==1)
+	Instance.new("UIListLayout",f).SortOrder=Enum.SortOrder.LayoutOrder
+	local h=fr(f,Color3.fromRGB(32,32,32),UDim2.new(1,0,0,20));h.LayoutOrder=0
+	fr(h,Color3.fromRGB(42,42,42),UDim2.new(1,0,0,1),UDim2.new(0,0,1,0))
+	local ht=tl(h,string.upper(title),10,Color3.fromRGB(110,110,110),Enum.TextXAlignment.Left)
+	ht.Size=UDim2.new(1,-8,1,0);ht.Position=UDim2.new(0,8,0,0)
+	table.insert(aBlk[ti],f);return f
+end
+local function mkRow(p,order,h)
+	local r=Instance.new("Frame",p);r.Size=UDim2.new(1,0,0,h or 32)
+	r.BackgroundTransparency=1;r.LayoutOrder=order
+	fr(r,Color3.fromRGB(30,30,30),UDim2.new(1,0,0,1),UDim2.new(0,0,1,-1));return r
+end
+local function mkL(p,t)
+	local l=tl(p,t,11,Color3.fromRGB(150,150,150),Enum.TextXAlignment.Left)
+	l.Size=UDim2.new(0,74,1,0);l.Position=UDim2.new(0,7,0,0)
+end
+local function mkNote(p,order,txt,col)
+	local r=mkRow(p,order,20)
+	local l=tl(r,txt,10,col or Color3.fromRGB(88,88,88),Enum.TextXAlignment.Left)
+	l.Size=UDim2.new(1,-14,1,0);l.Position=UDim2.new(0,7,0,0)
+end
+local function mkTog(p,onCB,offCB)
+	local bg=fr(p,Color3.fromRGB(50,50,50),UDim2.new(0,34,0,17),UDim2.new(0,86,0.5,-8))
+	bg.BorderSizePixel=1;bg.BorderColor3=Color3.fromRGB(66,66,66)
+	local kn=fr(bg,Color3.fromRGB(255,255,255),UDim2.new(0,11,0,11),UDim2.new(0,2,0.5,-5))
+	local sl=tl(p,"OFF",10,Color3.fromRGB(100,100,100),nil)
+	sl.Size=UDim2.new(0,28,0,17);sl.Position=UDim2.new(0,124,0.5,-8)
+	local b=Instance.new("TextButton",p)
+	b.Size=UDim2.new(0,64,1,0);b.Position=UDim2.new(0,86,0,0)
+	b.BackgroundTransparency=1;b.Text="";b.BorderSizePixel=0
+	local s=false
+	b.MouseButton1Click:Connect(function()
+		s=not s
+		if s then
+			bg.BackgroundColor3=Color3.fromRGB(91,143,255);bg.BorderColor3=Color3.fromRGB(91,143,255)
+			TS:Create(kn,TweenInfo.new(0.12),{Position=UDim2.new(0,21,0.5,-5)}):Play()
+			sl.Text="ON";sl.TextColor3=Color3.fromRGB(91,143,255);if onCB then onCB() end
+		else
+			bg.BackgroundColor3=Color3.fromRGB(50,50,50);bg.BorderColor3=Color3.fromRGB(66,66,66)
+			TS:Create(kn,TweenInfo.new(0.12),{Position=UDim2.new(0,2,0.5,-5)}):Play()
+			sl.Text="OFF";sl.TextColor3=Color3.fromRGB(100,100,100);if offCB then offCB() end
+		end
+	end)
+end
+local function mkPMS(p,order,def,mn,mx,stp,cb)
+	local r1=mkRow(p,order,32);mkL(r1,"Value")
+	local mi=Instance.new("TextButton",r1);mi.Size=UDim2.new(0,20,0,20);mi.Position=UDim2.new(0,86,0.5,-10);mi.BackgroundColor3=Color3.fromRGB(40,40,40);mi.BorderSizePixel=1;mi.BorderColor3=Color3.fromRGB(58,58,58);mi.Text="-";mi.TextColor3=Color3.fromRGB(200,200,200);mi.TextSize=14;mi.Font=Enum.Font.Code
+	local nb=Instance.new("TextBox",r1);nb.Size=UDim2.new(0,44,0,20);nb.Position=UDim2.new(0,110,0.5,-10);nb.BackgroundColor3=Color3.fromRGB(14,14,14);nb.BorderSizePixel=1;nb.BorderColor3=Color3.fromRGB(40,40,40);nb.Text=tostring(def);nb.TextColor3=Color3.fromRGB(255,255,255);nb.TextSize=12;nb.Font=Enum.Font.Code;nb.ClearTextOnFocus=false
 	local pl=Instance.new("TextButton",r1);pl.Size=UDim2.new(0,20,0,20);pl.Position=UDim2.new(0,158,0.5,-10);pl.BackgroundColor3=Color3.fromRGB(40,40,40);pl.BorderSizePixel=1;pl.BorderColor3=Color3.fromRGB(58,58,58);pl.Text="+";pl.TextColor3=Color3.fromRGB(200,200,200);pl.TextSize=14;pl.Font=Enum.Font.Code
 	local r2=mkRow(p,order+1,26);mkL(r2,"Slider")
 	local sbg=fr(r2,Color3.fromRGB(46,46,46),UDim2.new(0,124,0,4),UDim2.new(0,86,0.5,-2))
 	local sf=fr(sbg,Color3.fromRGB(91,143,255),UDim2.new((def-mn)/(mx-mn),0,1,0))
 	local sk=Instance.new("TextButton",sbg);sk.Size=UDim2.new(0,12,0,12);sk.Position=UDim2.new((def-mn)/(mx-mn),-6,0.5,-6);sk.BackgroundColor3=Color3.fromRGB(91,143,255);sk.BorderSizePixel=0;sk.Text="";sk.ZIndex=5
 	local val=def
-	local function set(v) val=math.clamp(math.floor(v/stp+0.5)*stp,mn,mx);nb.Text=tostring(val);local r=(val-mn)/(mx-mn);sf.Size=UDim2.new(r,0,1,0);sk.Position=UDim2.new(r,-6,0.5,-6);if cb then cb(val) end end
-	mi.MouseButton1Click:Connect(function() set(val-stp) end);pl.MouseButton1Click:Connect(function() set(val+stp) end)
+	local function set(v)
+		val=math.clamp(math.floor(v/stp+0.5)*stp,mn,mx);nb.Text=tostring(val)
+		local ratio=(val-mn)/(mx-mn);sf.Size=UDim2.new(ratio,0,1,0);sk.Position=UDim2.new(ratio,-6,0.5,-6)
+		if cb then cb(val) end
+	end
+	mi.MouseButton1Click:Connect(function() set(val-stp) end)
+	pl.MouseButton1Click:Connect(function() set(val+stp) end)
 	nb.FocusLost:Connect(function() local n=tonumber(nb.Text);if n then set(n) else nb.Text=tostring(val) end end)
-	local drag=false;sk.MouseButton1Down:Connect(function() drag=true end);sbg.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true end end)
+	local drag=false
+	sk.MouseButton1Down:Connect(function() drag=true end)
+	sbg.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true end end)
 	UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
-	UIS.InputChanged:Connect(function(i) if drag and i.UserInputType==Enum.UserInputType.MouseMovement then set(mn+(math.clamp((i.Position.X-sbg.AbsolutePosition.X)/sbg.AbsoluteSize.X,0,1))*(mx-mn)) end end)
+	UIS.InputChanged:Connect(function(i)
+		if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+			set(mn+(math.clamp((i.Position.X-sbg.AbsolutePosition.X)/sbg.AbsoluteSize.X,0,1))*(mx-mn))
+		end
+	end)
 end
 local function mkPList(blk,getTgt,setTgt)
 	local rs=mkRow(blk,2,32);mkL(rs,"Target")
 	local sL=Instance.new("TextLabel",rs);sL.Size=UDim2.new(0,148,0,20);sL.Position=UDim2.new(0,86,0.5,-10);sL.BackgroundColor3=Color3.fromRGB(20,20,20);sL.BorderSizePixel=1;sL.BorderColor3=Color3.fromRGB(40,40,40);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115);sL.TextSize=11;sL.Font=Enum.Font.Code
-	local rl=mkRow(blk,3,110);local pSF=Instance.new("ScrollingFrame",rl)
-	pSF.Size=UDim2.new(1,-10,1,-8);pSF.Position=UDim2.new(0,5,0,4);pSF.BackgroundColor3=Color3.fromRGB(20,20,20);pSF.BorderSizePixel=1;pSF.BorderColor3=Color3.fromRGB(36,36,36);pSF.ScrollBarThickness=4;pSF.ScrollBarImageColor3=Color3.fromRGB(65,65,65);pSF.CanvasSize=UDim2.new(0,0,0,0);pSF.AutomaticCanvasSize=Enum.AutomaticSize.Y
+	local rl=mkRow(blk,3,110)
+	local pSF=Instance.new("ScrollingFrame",rl);pSF.Size=UDim2.new(1,-10,1,-8);pSF.Position=UDim2.new(0,5,0,4);pSF.BackgroundColor3=Color3.fromRGB(20,20,20);pSF.BorderSizePixel=1;pSF.BorderColor3=Color3.fromRGB(36,36,36);pSF.ScrollBarThickness=4;pSF.ScrollBarImageColor3=Color3.fromRGB(65,65,65);pSF.CanvasSize=UDim2.new(0,0,0,0);pSF.AutomaticCanvasSize=Enum.AutomaticSize.Y
 	Instance.new("UIListLayout",pSF).SortOrder=Enum.SortOrder.LayoutOrder
-	local function bList() for _,c in ipairs(pSF:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end
-		local cnt=0;for _,p in ipairs(Pl:GetPlayers()) do if p~=lp then cnt+=1
-			local b=Instance.new("TextButton",pSF);b.Size=UDim2.new(1,0,0,26);b.BackgroundColor3=getTgt()==p.Name and Color3.fromRGB(34,50,80) or Color3.fromRGB(24,24,24);b.BorderSizePixel=0;b.LayoutOrder=cnt;b.Text="  "..p.Name;b.TextColor3=getTgt()==p.Name and Color3.fromRGB(91,143,255) or Color3.fromRGB(185,185,185);b.TextSize=11;b.Font=Enum.Font.Code;b.TextXAlignment=Enum.TextXAlignment.Left
-			b.MouseButton1Click:Connect(function() setTgt(p.Name);sL.Text=p.Name;sL.TextColor3=Color3.fromRGB(255,255,255);bList() end)
-		end end
-		if cnt==0 then local nl=Instance.new("TextLabel",pSF);nl.Size=UDim2.new(1,0,0,26);nl.BackgroundTransparency=1;nl.Text="  (ไม่มีผู้เล่นอื่น)";nl.TextColor3=Color3.fromRGB(72,72,72);nl.TextSize=11;nl.Font=Enum.Font.Code;nl.TextXAlignment=Enum.TextXAlignment.Left end
+	local function bList()
+		for _,c in ipairs(pSF:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end
+		local cnt=0
+		for _,p in ipairs(Pl:GetPlayers()) do
+			if p~=lp then cnt+=1
+				local b=Instance.new("TextButton",pSF);b.Size=UDim2.new(1,0,0,26);b.LayoutOrder=cnt;b.BorderSizePixel=0
+				b.BackgroundColor3=getTgt()==p.Name and Color3.fromRGB(34,50,80) or Color3.fromRGB(24,24,24)
+				b.Text="  "..p.Name;b.TextSize=11;b.Font=Enum.Font.Code;b.TextXAlignment=Enum.TextXAlignment.Left
+				b.TextColor3=getTgt()==p.Name and Color3.fromRGB(91,143,255) or Color3.fromRGB(185,185,185)
+				b.MouseButton1Click:Connect(function() setTgt(p.Name);sL.Text=p.Name;sL.TextColor3=Color3.fromRGB(255,255,255);bList() end)
+			end
+		end
+		if cnt==0 then
+			local nl=Instance.new("TextLabel",pSF);nl.Size=UDim2.new(1,0,0,26);nl.BackgroundTransparency=1
+			nl.Text="  (ไม่มีผู้เล่นอื่น)";nl.TextColor3=Color3.fromRGB(72,72,72);nl.TextSize=11;nl.Font=Enum.Font.Code;nl.TextXAlignment=Enum.TextXAlignment.Left
+		end
 	end
 	bList()
-	task.spawn(function() while true do task.wait(2);bList();if getTgt() and not Pl:FindFirstChild(getTgt()) then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end end end)
+	task.spawn(function() while true do task.wait(2);bList()
+		if getTgt() and not Pl:FindFirstChild(getTgt()) then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end
+	end end)
 	Pl.PlayerAdded:Connect(function() task.wait(1);bList() end)
 	Pl.PlayerRemoving:Connect(function(p) if getTgt()==p.Name then setTgt(nil);sL.Text="-- ยังไม่ได้เลือก --";sL.TextColor3=Color3.fromRGB(115,115,115) end;task.wait(0.1);bList() end)
 end
 
+-- ============================================================
+-- BUILD TABS
+-- ============================================================
+
 -- TAB 1: Player
-local b1=mkBlk(1,"Speed",1);do local r=mkRow(b1,1,32);mkL(r,"Enable");mkTog(r,function() sOn=true;apSpd() end,function() sOn=false;local h=H();if h then h.WalkSpeed=16 end end) end;mkPMS(b1,2,16,1,500,1,function(v) sVal=v;if sOn then apSpd() end end)
-local b2=mkBlk(1,"Jump Power",2);do local r=mkRow(b2,1,32);mkL(r,"Enable");mkTog(r,function() jOn=true;apJmp() end,function() jOn=false;local h=H();if h then h.UseJumpPower=true;h.JumpPower=50 end end) end;mkPMS(b2,2,50,1,500,5,function(v) jVal=v;if jOn then apJmp() end end)
-local b3=mkBlk(1,"Player Fly",3);do local r=mkRow(b3,1,32);mkL(r,"Enable");mkTog(r,function() fOn=true;startFly() end,function() fOn=false;stopFly() end) end;mkPMS(b3,2,120,10,500,10,function(v) fSpd=v end)
-local b4=mkBlk(1,"Fling",4);do local r=mkRow(b4,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end;mkNote(b4,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
+local b1=mkBlk(1,"Speed",1)
+do local r=mkRow(b1,1,32);mkL(r,"Enable");mkTog(r,function() sOn=true;apSpd() end,function() sOn=false;local h=H();if h then h.WalkSpeed=16 end end) end
+mkPMS(b1,2,16,1,500,1,function(v) sVal=v;if sOn then apSpd() end end)
+
+local b2=mkBlk(1,"Jump Power",2)
+do local r=mkRow(b2,1,32);mkL(r,"Enable");mkTog(r,function() jOn=true;apJmp() end,function() jOn=false;local h=H();if h then h.UseJumpPower=true;h.JumpPower=50 end end) end
+mkPMS(b2,2,50,1,500,5,function(v) jVal=v;if jOn then apJmp() end end)
+
+local b3=mkBlk(1,"Player Fly",3)
+do local r=mkRow(b3,1,32);mkL(r,"Enable");mkTog(r,function() fOn=true;startFly() end,function() fOn=false;stopFly() end) end
+mkPMS(b3,2,120,10,500,10,function(v) fSpd=v end)
+
+local b4=mkBlk(1,"Fling",4)
+do local r=mkRow(b4,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end
+mkNote(b4,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
 
 -- TAB 2: TP
 local bTP=mkBlk(2,"Teleport To Player",1)
@@ -107,29 +432,183 @@ mkPList(bTP,function() return tTgt end,function(v) tTgt=v end)
 local rn=mkRow(bTP,4,32);mkL(rn,"Action")
 local tB=Instance.new("TextButton",rn);tB.Size=UDim2.new(0,100,0,22);tB.Position=UDim2.new(0,86,0.5,-11);tB.BackgroundColor3=Color3.fromRGB(91,143,255);tB.BorderSizePixel=0;tB.Text="Teleport Now";tB.TextColor3=Color3.fromRGB(255,255,255);tB.TextSize=11;tB.Font=Enum.Font.Code
 local tSt=tl(rn,"",10,Color3.fromRGB(79,255,176),Enum.TextXAlignment.Left);tSt.Size=UDim2.new(0,60,0,22);tSt.Position=UDim2.new(0,192,0.5,-11)
-tB.MouseButton1Click:Connect(function() if not tTgt then tSt.Text="⚠ เลือกก่อน";tSt.TextColor3=Color3.fromRGB(255,90,90);task.delay(1.5,function() tSt.Text="" end);return end;doTP();tSt.Text="✓ วาปแล้ว";tSt.TextColor3=Color3.fromRGB(79,255,176);task.delay(1.5,function() tSt.Text="" end) end)
+tB.MouseButton1Click:Connect(function()
+	if not tTgt then tSt.Text="⚠ เลือกก่อน";tSt.TextColor3=Color3.fromRGB(255,90,90);task.delay(1.5,function() tSt.Text="" end);return end
+	doTP();tSt.Text="✓ วาปแล้ว";tSt.TextColor3=Color3.fromRGB(79,255,176);task.delay(1.5,function() tSt.Text="" end)
+end)
 
 -- TAB 3: ป้องกัน
-local bNC=mkBlk(3,"Noclip",1);do local r=mkRow(bNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end;mkNote(bNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
-local bAF=mkBlk(3,"Anti-Fling",2);do local r=mkRow(bAF,1,32);mkL(r,"Enable");mkTog(r,function() afOn=true;startAF() end,function() afOn=false;stopAF() end) end;mkNote(bAF,2,"ป้องกันถูก Fling กระเด็น")
-local bAL=mkBlk(3,"Anti-Launch",3);do local r=mkRow(bAL,1,32);mkL(r,"Enable");mkTog(r,function() alOn=true;startAL() end,function() alOn=false;stopAL() end) end;mkNote(bAL,2,"วาปกลับจุดเดิมเมื่อโดนกระเด็น")
+local bNC=mkBlk(3,"Noclip",1)
+do local r=mkRow(bNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end
+mkNote(bNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
+
+local bAF=mkBlk(3,"Anti-Fling",2)
+do local r=mkRow(bAF,1,32);mkL(r,"Enable");mkTog(r,function() afOn=true;startAF() end,function() afOn=false;stopAF() end) end
+mkNote(bAF,2,"ป้องกันถูก Fling กระเด็น")
+
+local bAL=mkBlk(3,"Anti-Launch",3)
+do local r=mkRow(bAL,1,32);mkL(r,"Enable");mkTog(r,function() alOn=true;startAL() end,function() alOn=false;stopAL() end) end
+mkNote(bAL,2,"วาปกลับจุดเดิมเมื่อโดนกระเด็น")
 
 -- TAB 4: Setting
-local bSNC=mkBlk(4,"Noclip",1);do local r=mkRow(bSNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end;mkNote(bSNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
-local bSFL=mkBlk(4,"Fling",2);do local r=mkRow(bSFL,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end;mkNote(bSFL,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
+local bSNC=mkBlk(4,"Noclip",1)
+do local r=mkRow(bSNC,1,32);mkL(r,"Enable");mkTog(r,function() ncOn=true;startNC() end,function() ncOn=false;stopNC() end) end
+mkNote(bSNC,2,"ทะลุผ่านสิ่งกีดขวางได้")
+
+local bSFL=mkBlk(4,"Fling",2)
+do local r=mkRow(bSFL,1,32);mkL(r,"Enable");mkTog(r,function() flOn=true;startFling() end,function() flOn=false end) end
+mkNote(bSFL,2,"⚠  กระเด็นผู้เล่นรอบข้าง",Color3.fromRGB(255,160,40))
 
 -- TAB 5: ESP
-local bESP=mkBlk(5,"ESP",1);do local r=mkRow(bESP,1,32);mkL(r,"Enable");mkTog(r,function() espOn=true;startESP() end,function() espOn=false end) end;mkNote(bESP,2,"แสดง HP ชื่อ และไฮไลต์ผู้เล่น")
-local bET=mkBlk(5,"Danger Tool",2);do local r=mkRow(bET,1,32);mkL(r,"Tool Name")
-	local nb=Instance.new("TextBox",r);nb.Size=UDim2.new(0,110,0,22);nb.Position=UDim2.new(0,86,0.5,-11);nb.BackgroundColor3=Color3.fromRGB(14,14,14);nb.BorderSizePixel=1;nb.BorderColor3=Color3.fromRGB(40,40,40);nb.Text=ESP_TOOL;nb.TextColor3=Color3.fromRGB(255,255,255);nb.TextSize=12;nb.Font=Enum.Font.Code;nb.ClearTextOnFocus=false
-	nb.FocusLost:Connect(function() if nb.Text~="" then ESP_TOOL=nb.Text end end)
-end;mkNote(bET,2,"ชื่อ Tool ที่จะเปลี่ยนสีเป็นแดง")
+local bESP=mkBlk(5,"ESP",1)
+do local r=mkRow(bESP,1,32);mkL(r,"Enable");mkTog(r,function() espOn=true;startESP() end,function() espOn=false end) end
+mkNote(bESP,2,"แสดง HP ชื่อ และไฮไลต์ผู้เล่น")
+
+local bET=mkBlk(5,"Danger Tools",2)
+do
+	local r1=mkRow(bET,1,32);mkL(r1,"Knife")
+	local nb1=Instance.new("TextBox",r1);nb1.Size=UDim2.new(0,110,0,22);nb1.Position=UDim2.new(0,86,0.5,-11);nb1.BackgroundColor3=Color3.fromRGB(14,14,14);nb1.BorderSizePixel=1;nb1.BorderColor3=Color3.fromRGB(40,40,40);nb1.Text=ESP_T1;nb1.TextColor3=Color3.fromRGB(255,255,255);nb1.TextSize=12;nb1.Font=Enum.Font.Code;nb1.ClearTextOnFocus=false
+	nb1.FocusLost:Connect(function() if nb1.Text~="" then ESP_T1=nb1.Text end end)
+	local r2=mkRow(bET,2,32);mkL(r2,"Gun")
+	local nb2=Instance.new("TextBox",r2);nb2.Size=UDim2.new(0,110,0,22);nb2.Position=UDim2.new(0,86,0.5,-11);nb2.BackgroundColor3=Color3.fromRGB(14,14,14);nb2.BorderSizePixel=1;nb2.BorderColor3=Color3.fromRGB(40,40,40);nb2.Text=ESP_T2;nb2.TextColor3=Color3.fromRGB(255,255,255);nb2.TextSize=12;nb2.Font=Enum.Font.Code;nb2.ClearTextOnFocus=false
+	nb2.FocusLost:Connect(function() if nb2.Text~="" then ESP_T2=nb2.Text end end)
+end
+mkNote(bET,3,"ขาว=ปกติ  แดง=มีด  น้ำเงิน=ปืน",Color3.fromRGB(100,100,130))
+
 
 -- TAB 6: Spectate
 local bSP=mkBlk(6,"Spectate",1)
 do local r=mkRow(bSP,1,32);mkL(r,"Enable");mkTog(r,function() if specTgt then specOn=true;startSpec() end end,function() specOn=false;stopSpec() end) end
 mkPList(bSP,function() return specTgt end,function(v) specTgt=v end)
-mkNote(bSP,4,"คลิกขวาค้าง+ลาก=หมุน  |  Scroll=ซูม")
+mkNote(bSP,4,"คลิกขวาค้าง+ลาก=หมุน  Scroll=ซูม")
 
+-- Open/Close
 local pOpen=true
-OB.MouseButton1Click:Connect(function() pOpen=not pOpen;P.Visible=pOpen;OB.Text=pOpen and "◀" or "▶";OB.TextColor3=pOpen and Color3.fromRGB(91,143,255) or Color3.fromRGB(110,110,110) end)
+OB.MouseButton1Click:Connect(function()
+	pOpen=not pOpen;P.Visible=pOpen
+	OB.Text=pOpen and "◀" or "▶"
+	OB.TextColor3=pOpen and Color3.fromRGB(91,143,255) or Color3.fromRGB(110,110,110)
+end)
+
+-- ============================================================
+-- LOADING SCREEN (แสดงก่อน แล้วค่อย slide panel เข้า)
+-- ============================================================
+local LSG=Instance.new("ScreenGui")
+LSG.Name="AxLoad";LSG.ResetOnSpawn=false;LSG.ZIndexBehavior=Enum.ZIndexBehavior.Sibling;LSG.Parent=lp.PlayerGui
+
+local LBG=Instance.new("Frame",LSG)
+LBG.Size=UDim2.new(1,0,1,0);LBG.BackgroundColor3=Color3.fromRGB(10,10,14);LBG.BorderSizePixel=0;LBG.ZIndex=100
+
+-- Glow circle
+local glow=Instance.new("Frame",LBG)
+glow.Size=UDim2.new(0,260,0,260);glow.Position=UDim2.new(0.5,-130,0.5,-155)
+glow.BackgroundColor3=Color3.fromRGB(15,30,70);glow.BorderSizePixel=0;glow.ZIndex=101
+Instance.new("UICorner",glow).CornerRadius=UDim.new(1,0)
+
+-- Title
+local logo=Instance.new("TextLabel",LBG)
+logo.Size=UDim2.new(0,400,0,44);logo.Position=UDim2.new(0.5,-200,0.5,-80)
+logo.BackgroundTransparency=1;logo.Text="AXPLORA HUB"
+logo.TextColor3=Color3.fromRGB(255,255,255);logo.TextSize=30;logo.Font=Enum.Font.GothamBold;logo.ZIndex=102
+
+local sub=Instance.new("TextLabel",LBG)
+sub.Size=UDim2.new(0,400,0,22);sub.Position=UDim2.new(0.5,-200,0.5,-36)
+sub.BackgroundTransparency=1;sub.Text="Admin Panel  v0.1"
+sub.TextColor3=Color3.fromRGB(91,143,255);sub.TextSize=13;sub.Font=Enum.Font.Gotham;sub.ZIndex=102
+
+-- Progress bar
+local barBG=Instance.new("Frame",LBG)
+barBG.Size=UDim2.new(0,300,0,5);barBG.Position=UDim2.new(0.5,-150,0.5,18)
+barBG.BackgroundColor3=Color3.fromRGB(28,28,38);barBG.BorderSizePixel=0;barBG.ZIndex=102
+Instance.new("UICorner",barBG).CornerRadius=UDim.new(1,0)
+
+local barFill=Instance.new("Frame",barBG)
+barFill.Size=UDim2.new(0,0,1,0);barFill.BackgroundColor3=Color3.fromRGB(91,143,255)
+barFill.BorderSizePixel=0;barFill.ZIndex=103
+Instance.new("UICorner",barFill).CornerRadius=UDim.new(1,0)
+
+-- Labels
+local pctLbl=Instance.new("TextLabel",LBG)
+pctLbl.Size=UDim2.new(0,300,0,18);pctLbl.Position=UDim2.new(0.5,-150,0.5,26)
+pctLbl.BackgroundTransparency=1;pctLbl.Text="0%"
+pctLbl.TextColor3=Color3.fromRGB(91,143,255);pctLbl.TextSize=11;pctLbl.Font=Enum.Font.GothamBold
+pctLbl.ZIndex=102;pctLbl.TextXAlignment=Enum.TextXAlignment.Right
+
+local statLbl=Instance.new("TextLabel",LBG)
+statLbl.Size=UDim2.new(0,300,0,18);statLbl.Position=UDim2.new(0.5,-150,0.5,26)
+statLbl.BackgroundTransparency=1;statLbl.Text="Initializing..."
+statLbl.TextColor3=Color3.fromRGB(110,110,130);statLbl.TextSize=11;statLbl.Font=Enum.Font.Gotham
+statLbl.ZIndex=102;statLbl.TextXAlignment=Enum.TextXAlignment.Left
+
+local dots=Instance.new("TextLabel",LBG)
+dots.Size=UDim2.new(0,300,0,18);dots.Position=UDim2.new(0.5,-150,0.5,46)
+dots.BackgroundTransparency=1;dots.Text="● ● ●"
+dots.TextColor3=Color3.fromRGB(50,50,70);dots.TextSize=9;dots.Font=Enum.Font.GothamBold
+dots.ZIndex=102;dots.TextXAlignment=Enum.TextXAlignment.Center
+
+-- Dot animation
+task.spawn(function()
+	local ds={"●  ○  ○","●  ●  ○","●  ●  ●","○  ●  ●","○  ○  ●","○  ○  ○"}
+	local di=1
+	while LBG.Visible do dots.Text=ds[di];di=di%#ds+1;task.wait(0.16) end
+end)
+
+-- Glow pulse
+task.spawn(function()
+	local s=true
+	while LBG.Visible do
+		TS:Create(glow,TweenInfo.new(1.1,Enum.EasingStyle.Sine),{BackgroundTransparency=s and 0.4 or 0.8}):Play()
+		s=not s;task.wait(1.1)
+	end
+end)
+
+-- Loading sequence
+local STEPS={
+	{8,  "Initializing services..."},
+	{18, "เชื่อมต่อ Server..."},
+	{30, "โหลด Player data..."},
+	{44, "ตรวจสอบ Character..."},
+	{56, "โหลด ESP module..."},
+	{68, "โหลด Fly module..."},
+	{79, "โหลด Protection..."},
+	{89, "โหลด Spectate..."},
+	{96, "เตรียม UI..."},
+	{100,"พร้อมใช้งาน!"},
+}
+
+task.spawn(function()
+	local cur=0
+	for _,step in ipairs(STEPS) do
+		statLbl.Text=step[2]
+		while cur<step[1] do
+			cur=math.min(cur+1,step[1])
+			local ratio=cur/100
+			barFill.Size=UDim2.new(ratio,0,1,0)
+			pctLbl.Text=cur.."%"
+			local c=Color3.fromRGB(math.floor(91+164*ratio),math.floor(143-43*ratio),math.floor(255-155*ratio))
+			barFill.BackgroundColor3=c;pctLbl.TextColor3=c
+			task.wait(math.random(15,50)/1000)
+		end
+		task.wait(math.random(8,25)/100)
+	end
+
+	-- เสร็จ
+	local green=Color3.fromRGB(79,255,176)
+	statLbl.TextColor3=green;pctLbl.TextColor3=green;barFill.BackgroundColor3=green
+	task.wait(0.5)
+
+	-- Fade out
+	TS:Create(LBG,TweenInfo.new(0.5,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{BackgroundTransparency=1}):Play()
+	for _,c in pairs(LBG:GetDescendants()) do
+		if c:IsA("TextLabel") then TS:Create(c,TweenInfo.new(0.4),{TextTransparency=1}):Play()
+		elseif c:IsA("Frame") then TS:Create(c,TweenInfo.new(0.4),{BackgroundTransparency=1}):Play() end
+	end
+	task.wait(0.55)
+	LSG:Destroy()
+	LBG.Visible=false
+
+	-- Slide panel in
+	OB.Visible=true;P.Visible=true
+	P.Position=UDim2.new(0,-260,0.5,-230)
+	TS:Create(P,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Position=UDim2.new(0,30,0.5,-230)}):Play()
+end)
