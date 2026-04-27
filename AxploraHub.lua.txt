@@ -5,7 +5,8 @@ local sOn,sVal,jOn,jVal,fOn,fSpd,flOn,tOn,tTgt=false,16,false,50,false,120,false
 local ncOn,afOn,alOn,espOn,specOn,specTgt=false,false,false,false,false,nil
 local fBV,fBG,ncC,afC,alC=nil,nil,nil,nil,nil
 local safePos,lastSafe=nil,0
-local ESP_TOOL,ESP_DEF,ESP_DGR="Knife",Color3.fromRGB(255,255,255),Color3.fromRGB(255,0,0)
+local ESP_TOOL1,ESP_TOOL2="Knife","Gun"
+local ESP_DEF=Color3.fromRGB(255,255,255);local ESP_DGR=Color3.fromRGB(255,0,0);local ESP_GUN=Color3.fromRGB(0,170,255)
 local specDist,specAngleX,specAngleY,specDrag=10,0,0,false
 
 local H=function() local c=lp.Character;return c and c:FindFirstChildOfClass("Humanoid") end
@@ -50,105 +51,17 @@ local function setESPColor(char,col) pcall(function()
 	local hl=char:FindFirstChild("ESPHighlight");if hl then hl.FillColor=col end
 	local g=char:FindFirstChild("ESP_Gui");if g and g:FindFirstChild("TextLabel") then g.TextLabel.TextColor3=col end
 	for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" and v:IsA("SphereHandleAdornment") then v.Color3=col end end end) end
+local function getESPColor(p,char) local bp=p:FindFirstChild("Backpack")
+	if char:FindFirstChild(ESP_TOOL2) or (bp and bp:FindFirstChild(ESP_TOOL2)) then return ESP_GUN end
+	if char:FindFirstChild(ESP_TOOL1) or (bp and bp:FindFirstChild(ESP_TOOL1)) then return ESP_DGR end
+	return ESP_DEF end
 local function removeESP(char) pcall(function()
 	for _,n in pairs({"ESPHighlight","ESP_Gui"}) do local x=char:FindFirstChild(n);if x then x:Destroy() end end
 	for _,v in pairs(char:GetDescendants()) do if v.Name=="JointESP" then v:Destroy() end end end) end
 local function createESP(p,char)
 	if not char or not char.Parent or char:FindFirstChild("ESPHighlight") then return end
 	local hum=char:FindFirstChildOfClass("Humanoid");local head=char:FindFirstChild("Head");if not hum or not head then return end
-	local hl=Instance.new("Highlight");hl.Name="ESPHighlight";hl.FillColor=ESP_DEF;hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop;hl.FillTransparency=0.6;hl.Parent=char
-	local gui=Instance.new("BillboardGui");gui.Name="ESP_Gui";gui.Size=UDim2.new(0,200,0,50);gui.AlwaysOnTop=true;gui.ExtentsOffset=Vector3.new(0,3,0);gui.Adornee=head;gui.Parent=char
-	local lbl=Instance.new("TextLabel",gui);lbl.Size=UDim2.new(1,0,1,0);lbl.BackgroundTransparency=1;lbl.TextScaled=true;lbl.Font=Enum.Font.SourceSansBold;lbl.TextStrokeTransparency=0
-	local parts=(hum.RigType==Enum.HumanoidRigType.R15) and {"Head","UpperTorso","LowerTorso","LeftUpperArm","RightUpperArm","LeftUpperLeg","RightUpperLeg"} or {"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"}
-	for _,name in pairs(parts) do local pt=char:FindFirstChild(name);if pt then local s=Instance.new("SphereHandleAdornment");s.Name="JointESP";s.Adornee=pt;s.AlwaysOnTop=true;s.ZIndex=10;s.Size=Vector3.new(1.1,1.1,1.1);s.Color3=ESP_DEF;s.Transparency=0.5;s.Parent=pt end end
-end
-local function startESP() task.spawn(function() while espOn do
-	for _,p in pairs(Pl:GetPlayers()) do if p~=lp then task.spawn(function()
-		local char=p.Character;if not char or not char.Parent then return end
-		createESP(p,char);local hum=char:FindFirstChildOfClass("Humanoid");local gui=char:FindFirstChild("ESP_Gui")
-		if hum and gui then local lbl=gui:FindFirstChild("TextLabel");if lbl then lbl.Text=string.format("%s\n%.0f/%.0f",p.Name,hum.Health,hum.MaxHealth) end
-		local bp=p:FindFirstChild("Backpack");setESPColor(char,(char:FindFirstChild(ESP_TOOL) or (bp and bp:FindFirstChild(ESP_TOOL))) and ESP_DGR or ESP_DEF) end
-	end) end end;task.wait(1) end
-	for _,p in pairs(Pl:GetPlayers()) do if p~=lp and p.Character then removeESP(p.Character) end end end) end
-
-local function startSpec()
-	cam.CameraType=Enum.CameraType.Scriptable
-	task.spawn(function() while specOn do
-		local t=Pl:FindFirstChild(specTgt);local tc=t and t.Character;local tr=tc and tc:FindFirstChild("HumanoidRootPart")
-		if tr then
-			local ox=math.cos(specAngleX)*math.sin(specAngleY)
-			local oy=math.sin(specAngleX)
-			local oz=math.cos(specAngleX)*math.cos(specAngleY)
-			local offset=Vector3.new(ox,oy,oz)*specDist
-			cam.CFrame=CFrame.lookAt(tr.Position+offset,tr.Position)
-		end;task.wait() end
-		cam.CameraType=Enum.CameraType.Custom
-		local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end end)
-end
-local function stopSpec()
-	specOn=false;cam.CameraType=Enum.CameraType.Custom
-	local myC=lp.Character;if myC then cam.CameraSubject=myC:FindFirstChildOfClass("Humanoid") end
-end
-
--- Spectate input (ไม่ล็อก mouse)
-UIS.InputChanged:Connect(function(i)
-	if not specOn then return end
-	if i.UserInputType==Enum.UserInputType.MouseWheel then
-		specDist=math.clamp(specDist-i.Position.Z*2,3,60)
-	end
-	if specDrag and i.UserInputType==Enum.UserInputType.MouseMovement then
-		specAngleY=specAngleY+i.Delta.X*0.005
-		specAngleX=math.clamp(specAngleX-i.Delta.Y*0.005,-1.4,1.4)
-	end
-end)
-UIS.InputBegan:Connect(function(i) if specOn and i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=true end end)
-UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton2 then specDrag=false end end)
-
-lp.CharacterAdded:Connect(function(c) c:WaitForChild("Humanoid");task.wait(0.5)
-	if sOn then apSpd() end;if jOn then apJmp() end;if fOn then startFly() end
-	if ncOn then startNC() end;if afOn then startAF() end;if alOn then startAL() end end)
-
--- GUI
-local SG=Instance.new("ScreenGui");SG.Name="AxploraHub";SG.ResetOnSpawn=false;SG.Parent=lp.PlayerGui
-local OB=Instance.new("TextButton",SG);OB.Size=UDim2.new(0,28,0,60);OB.Position=UDim2.new(0,0,0.5,-30);OB.BackgroundColor3=Color3.fromRGB(26,26,26);OB.BorderSizePixel=1;OB.BorderColor3=Color3.fromRGB(60,60,60);OB.Text="◀";OB.TextColor3=Color3.fromRGB(91,143,255);OB.TextSize=13;OB.Font=Enum.Font.Code;OB.ZIndex=20
-local P=Instance.new("Frame",SG);P.Size=UDim2.new(0,260,0,460);P.Position=UDim2.new(0,30,0.5,-230);P.BackgroundColor3=Color3.fromRGB(17,17,17);P.BorderSizePixel=1;P.BorderColor3=Color3.fromRGB(50,50,50);P.Active=true;P.Draggable=true
-local function fr(p,bg,sz,pos) local f=Instance.new("Frame",p);f.BackgroundColor3=bg;f.BorderSizePixel=0;if sz then f.Size=sz end;if pos then f.Position=pos end;return f end
-local function tl(p,txt,sz,col,xa) local l=Instance.new("TextLabel",p);l.BackgroundTransparency=1;l.Text=txt;l.TextSize=sz;l.Font=Enum.Font.Code;l.TextColor3=col;if xa then l.TextXAlignment=xa end;return l end
-do local tb=fr(P,Color3.fromRGB(24,24,24),UDim2.new(1,0,0,26),UDim2.new(0,0,0,0));local t=tl(tb,"Axplora Hub  |  v0.1",11,Color3.fromRGB(210,210,210),Enum.TextXAlignment.Left);t.Size=UDim2.new(1,-8,1,0);t.Position=UDim2.new(0,8,0,0);fr(tb,Color3.fromRGB(50,50,50),UDim2.new(1,0,0,1),UDim2.new(0,0,1,0)) end
-local TAB=fr(P,Color3.fromRGB(20,20,20),UDim2.new(1,0,0,24),UDim2.new(0,0,0,26));fr(TAB,Color3.fromRGB(50,50,50),UDim2.new(1,0,0,1),UDim2.new(0,0,1,-1))
-local SC=Instance.new("ScrollingFrame",P);SC.Size=UDim2.new(1,0,1,-50);SC.Position=UDim2.new(0,0,0,50);SC.BackgroundTransparency=1;SC.BorderSizePixel=0;SC.ScrollBarThickness=4;SC.ScrollBarImageColor3=Color3.fromRGB(70,70,70);SC.CanvasSize=UDim2.new(0,0,0,0);SC.AutomaticCanvasSize=Enum.AutomaticSize.Y
-do local l=Instance.new("UIListLayout",SC);l.SortOrder=Enum.SortOrder.LayoutOrder;l.Padding=UDim.new(0,4) end
-do local p=Instance.new("UIPadding",SC);p.PaddingTop=UDim.new(0,5);p.PaddingBottom=UDim.new(0,5);p.PaddingLeft=UDim.new(0,5);p.PaddingRight=UDim.new(0,5) end
-local TABS={"Player","TP","ป้องกัน","Setting","ESP","Spec"};local tBtns={};local aBlk={{},{},{},{},{},{}};local tw=math.floor(260/#TABS)
-local function swTab(i) for ti,list in ipairs(aBlk) do for _,b in ipairs(list) do b.Visible=(ti==i) end end;for j,t in ipairs(tBtns) do t.b.TextColor3=(j==i) and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,80);t.l.Visible=(j==i) end;SC.CanvasPosition=Vector2.zero end
-for i,name in ipairs(TABS) do
-	local b=Instance.new("TextButton",TAB);b.Size=UDim2.new(0,tw,1,-2);b.Position=UDim2.new(0,(i-1)*tw,0,1);b.BackgroundTransparency=1;b.BorderSizePixel=0;b.Text=name;b.TextSize=10;b.Font=Enum.Font.Code;b.TextColor3=(i==1) and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,80)
-	local ul=fr(b,Color3.fromRGB(91,143,255),UDim2.new(1,0,0,2),UDim2.new(0,0,1,-1));ul.Visible=(i==1)
-	tBtns[i]={b=b,l=ul};local idx=i;b.MouseButton1Click:Connect(function() swTab(idx) end)
-end
-local function mkBlk(ti,title,order)
-	local f=Instance.new("Frame",SC);f.Size=UDim2.new(1,0,0,0);f.AutomaticSize=Enum.AutomaticSize.Y;f.BackgroundColor3=Color3.fromRGB(26,26,26);f.BorderSizePixel=1;f.BorderColor3=Color3.fromRGB(42,42,42);f.LayoutOrder=order;f.Visible=(ti==1)
-	Instance.new("UIListLayout",f).SortOrder=Enum.SortOrder.LayoutOrder
-	local h=fr(f,Color3.fromRGB(32,32,32),UDim2.new(1,0,0,20));h.LayoutOrder=0;fr(h,Color3.fromRGB(42,42,42),UDim2.new(1,0,0,1),UDim2.new(0,0,1,0))
-	local ht=tl(h,string.upper(title),10,Color3.fromRGB(110,110,110),Enum.TextXAlignment.Left);ht.Size=UDim2.new(1,-8,1,0);ht.Position=UDim2.new(0,8,0,0)
-	table.insert(aBlk[ti],f);return f
-end
-local function mkRow(p,order,h) local r=Instance.new("Frame",p);r.Size=UDim2.new(1,0,0,h or 32);r.BackgroundTransparency=1;r.LayoutOrder=order;fr(r,Color3.fromRGB(30,30,30),UDim2.new(1,0,0,1),UDim2.new(0,0,1,-1));return r end
-local function mkL(p,t) local l=tl(p,t,11,Color3.fromRGB(150,150,150),Enum.TextXAlignment.Left);l.Size=UDim2.new(0,74,1,0);l.Position=UDim2.new(0,7,0,0) end
-local function mkNote(p,order,txt,col) local r=mkRow(p,order,20);local l=tl(r,txt,10,col or Color3.fromRGB(88,88,88),Enum.TextXAlignment.Left);l.Size=UDim2.new(1,-14,1,0);l.Position=UDim2.new(0,7,0,0) end
-local function mkTog(p,on,off)
-	local bg=fr(p,Color3.fromRGB(50,50,50),UDim2.new(0,34,0,17),UDim2.new(0,86,0.5,-8));bg.BorderSizePixel=1;bg.BorderColor3=Color3.fromRGB(66,66,66)
-	local kn=fr(bg,Color3.fromRGB(255,255,255),UDim2.new(0,11,0,11),UDim2.new(0,2,0.5,-5))
-	local sl=tl(p,"OFF",10,Color3.fromRGB(100,100,100),nil);sl.Size=UDim2.new(0,28,0,17);sl.Position=UDim2.new(0,124,0.5,-8)
-	local b=Instance.new("TextButton",p);b.Size=UDim2.new(0,64,1,0);b.Position=UDim2.new(0,86,0,0);b.BackgroundTransparency=1;b.Text="";b.BorderSizePixel=0;local s=false
-	b.MouseButton1Click:Connect(function() s=not s
-		if s then bg.BackgroundColor3=Color3.fromRGB(91,143,255);bg.BorderColor3=Color3.fromRGB(91,143,255);TS:Create(kn,TweenInfo.new(0.12),{Position=UDim2.new(0,21,0.5,-5)}):Play();sl.Text="ON";sl.TextColor3=Color3.fromRGB(91,143,255);if on then on() end
-		else bg.BackgroundColor3=Color3.fromRGB(50,50,50);bg.BorderColor3=Color3.fromRGB(66,66,66);TS:Create(kn,TweenInfo.new(0.12),{Position=UDim2.new(0,2,0.5,-5)}):Play();sl.Text="OFF";sl.TextColor3=Color3.fromRGB(100,100,100);if off then off() end end end)
-end
-local function mkPMS(p,order,def,mn,mx,stp,cb)
-	local r1=mkRow(p,order,32);mkL(r1,"Value")
-	local mi=Instance.new("TextButton",r1);mi.Size=UDim2.new(0,20,0,20);mi.Position=UDim2.new(0,86,0.5,-10);mi.BackgroundColor3=Color3.fromRGB(40,40,40);mi.BorderSizePixel=1;mi.BorderColor3=Color3.fromRGB(58,58,58);mi.Text="-";mi.TextColor3=Color3.fromRGB(200,200,200);mi.TextSize=14;mi.Font=Enum.Font.Code
-	local nb=Instance.new("TextBox",r1);nb.Size=UDim2.new(0,44,0,20);nb.Position=UDim2.new(0,110,0.5,-10);nb.BackgroundColor3=Color3.fromRGB(14,14,14);nb.BorderSizePixel=1;nb.BorderColor3=Color3.fromRGB(40,40,40);nb.Text=tostring(def);nb.TextColor3=Color3.fromRGB(255,255,255);nb.TextSize=12;nb.Font=Enum.Font.Code;nb.ClearTextOnFocus=false
+fromRGB(255,255,255);nb.TextSize=12;nb.Font=Enum.Font.Code;nb.ClearTextOnFocus=false
 	local pl=Instance.new("TextButton",r1);pl.Size=UDim2.new(0,20,0,20);pl.Position=UDim2.new(0,158,0.5,-10);pl.BackgroundColor3=Color3.fromRGB(40,40,40);pl.BorderSizePixel=1;pl.BorderColor3=Color3.fromRGB(58,58,58);pl.Text="+";pl.TextColor3=Color3.fromRGB(200,200,200);pl.TextSize=14;pl.Font=Enum.Font.Code
 	local r2=mkRow(p,order+1,26);mkL(r2,"Slider")
 	local sbg=fr(r2,Color3.fromRGB(46,46,46),UDim2.new(0,124,0,4),UDim2.new(0,86,0.5,-2))
