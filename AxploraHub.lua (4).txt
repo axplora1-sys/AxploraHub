@@ -1,1 +1,574 @@
-lol
+-- Admin UI LocalScript
+-- วางใน StarterPlayerScripts หรือ StarterCharacterScripts
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- =============================================
+-- CONFIG: ใส่ชื่อ Admin ที่ได้รับสิทธิ์
+-- =============================================
+local ADMINS = {
+    ["YourUsernameHere"] = true,
+    -- เพิ่ม admin เพิ่มเติมได้ที่นี่
+}
+
+local ADMIN_KEY = Enum.KeyCode.RightControl -- ปุ่มเปิด/ปิด GUI
+
+-- =============================================
+-- ตรวจสอบสิทธิ์ Admin
+-- =============================================
+if not ADMINS[player.Name] then
+    warn("[AdminUI] คุณไม่มีสิทธิ์ใช้งาน Admin Panel")
+    return
+end
+
+-- =============================================
+-- สร้าง ScreenGui
+-- =============================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AdminPanel"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = playerGui
+
+-- =============================================
+-- Main Frame (หน้าต่างหลัก)
+-- =============================================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 520, 0, 440)
+MainFrame.Position = UDim2.new(0.5, -260, 0.5, -220)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
+
+-- Rounded corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+-- Neon border glow (UIStroke)
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 200, 255)
+UIStroke.Thickness = 2
+UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+UIStroke.Parent = MainFrame
+
+-- Shadow (outer frame)
+local Shadow = Instance.new("Frame")
+Shadow.Name = "Shadow"
+Shadow.Size = UDim2.new(1, 20, 1, 20)
+Shadow.Position = UDim2.new(0, -10, 0, -10)
+Shadow.BackgroundColor3 = Color3.fromRGB(0, 150, 220)
+Shadow.BackgroundTransparency = 0.88
+Shadow.ZIndex = MainFrame.ZIndex - 1
+Shadow.Parent = MainFrame
+local ShadowCorner = Instance.new("UICorner")
+ShadowCorner.CornerRadius = UDim.new(0, 18)
+ShadowCorner.Parent = Shadow
+
+-- =============================================
+-- Title Bar
+-- =============================================
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 48)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+TitleBar.BackgroundTransparency = 0.15
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+
+-- Fix bottom corners of TitleBar
+local TitleFix = Instance.new("Frame")
+TitleFix.Size = UDim2.new(1, 0, 0.5, 0)
+TitleFix.Position = UDim2.new(0, 0, 0.5, 0)
+TitleFix.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+TitleFix.BackgroundTransparency = 0.15
+TitleFix.BorderSizePixel = 0
+TitleFix.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Text = "⚡  ADMIN PANEL"
+TitleLabel.Size = UDim2.new(1, -100, 1, 0)
+TitleLabel.Position = UDim2.new(0, 16, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 18
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+-- Close Button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Text = "✕"
+CloseBtn.Size = UDim2.new(0, 36, 0, 36)
+CloseBtn.Position = UDim2.new(1, -44, 0, 6)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 80)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 16
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Parent = TitleBar
+local CloseBtnCorner = Instance.new("UICorner")
+CloseBtnCorner.CornerRadius = UDim.new(0, 8)
+CloseBtnCorner.Parent = CloseBtn
+
+-- =============================================
+-- Draggable Title Bar
+-- =============================================
+local dragging, dragInput, dragStart, startPos
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+TitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- =============================================
+-- Tabs Bar
+-- =============================================
+local TabsBar = Instance.new("Frame")
+TabsBar.Name = "TabsBar"
+TabsBar.Size = UDim2.new(1, -32, 0, 36)
+TabsBar.Position = UDim2.new(0, 16, 0, 56)
+TabsBar.BackgroundTransparency = 1
+TabsBar.Parent = MainFrame
+
+local TabsLayout = Instance.new("UIListLayout")
+TabsLayout.FillDirection = Enum.FillDirection.Horizontal
+TabsLayout.Padding = UDim.new(0, 8)
+TabsLayout.Parent = TabsBar
+
+local tabNames = {"Players", "World", "Tools", "Logs"}
+local tabs = {}
+local tabFrames = {}
+
+-- Content area
+local ContentArea = Instance.new("Frame")
+ContentArea.Name = "ContentArea"
+ContentArea.Size = UDim2.new(1, -32, 1, -110)
+ContentArea.Position = UDim2.new(0, 16, 0, 100)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
+
+-- =============================================
+-- Helper: สร้าง Tab Frame
+-- =============================================
+local function createTabFrame()
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 1, 0)
+    f.BackgroundTransparency = 1
+    f.Visible = false
+    f.Parent = ContentArea
+    return f
+end
+
+-- =============================================
+-- Helper: สร้างปุ่มสวยงาม
+-- =============================================
+local function makeButton(parent, text, color, pos, size)
+    local btn = Instance.new("TextButton")
+    btn.Text = text
+    btn.Size = size or UDim2.new(1, 0, 0, 38)
+    btn.Position = pos or UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = color or Color3.fromRGB(0, 180, 255)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.GothamSemibold
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = btn
+    -- Hover
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = color:lerp(Color3.new(1,1,1), 0.15)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
+    end)
+    return btn
+end
+
+-- =============================================
+-- Helper: TextInput
+-- =============================================
+local function makeInput(parent, placeholder, pos, size)
+    local box = Instance.new("TextBox")
+    box.PlaceholderText = placeholder or "พิมพ์ที่นี่..."
+    box.Text = ""
+    box.Size = size or UDim2.new(1, 0, 0, 36)
+    box.Position = pos or UDim2.new(0, 0, 0, 0)
+    box.BackgroundColor3 = Color3.fromRGB(20, 24, 38)
+    box.TextColor3 = Color3.fromRGB(200, 220, 255)
+    box.PlaceholderColor3 = Color3.fromRGB(80, 100, 140)
+    box.TextSize = 14
+    box.Font = Enum.Font.Gotham
+    box.BorderSizePixel = 0
+    box.ClearTextOnFocus = false
+    box.Parent = parent
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = box
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(0, 180, 255); s.Thickness = 1.5; s.Transparency = 0.6; s.Parent = box
+    local pad = Instance.new("UIPadding"); pad.PaddingLeft = UDim.new(0, 10); pad.Parent = box
+    return box
+end
+
+-- =============================================
+-- Helper: Label
+-- =============================================
+local function makeLabel(parent, text, pos, size)
+    local lbl = Instance.new("TextLabel")
+    lbl.Text = text
+    lbl.Size = size or UDim2.new(1, 0, 0, 24)
+    lbl.Position = pos or UDim2.new(0, 0, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(140, 200, 255)
+    lbl.TextSize = 13
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = parent
+    return lbl
+end
+
+-- =============================================
+-- Notification popup
+-- =============================================
+local function notify(msg, color)
+    color = color or Color3.fromRGB(0, 200, 120)
+    local notif = Instance.new("Frame")
+    notif.Size = UDim2.new(0, 300, 0, 44)
+    notif.Position = UDim2.new(0.5, -150, 1, 60)
+    notif.BackgroundColor3 = color
+    notif.BorderSizePixel = 0
+    notif.Parent = ScreenGui
+    local nc = Instance.new("UICorner"); nc.CornerRadius = UDim.new(0, 10); nc.Parent = notif
+    local nl = Instance.new("TextLabel")
+    nl.Text = msg
+    nl.Size = UDim2.new(1, -16, 1, 0)
+    nl.Position = UDim2.new(0, 8, 0, 0)
+    nl.BackgroundTransparency = 1
+    nl.TextColor3 = Color3.new(1, 1, 1)
+    nl.TextSize = 14
+    nl.Font = Enum.Font.GothamSemibold
+    nl.Parent = notif
+
+    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -150, 1, -60)}):Play()
+    task.delay(2.5, function()
+        TweenService:Create(notif, TweenInfo.new(0.3), {Position = UDim2.new(0.5, -150, 1, 60)}):Play()
+        task.delay(0.35, function() notif:Destroy() end)
+    end)
+end
+
+-- =============================================
+-- TAB 1: Players
+-- =============================================
+local playersFrame = createTabFrame()
+
+makeLabel(playersFrame, "ชื่อผู้เล่น", UDim2.new(0, 0, 0, 0))
+local playerInput = makeInput(playersFrame, "ชื่อผู้เล่น...", UDim2.new(0, 0, 0, 22))
+
+-- Grid สำหรับปุ่ม
+local btnGrid = Instance.new("Frame")
+btnGrid.Size = UDim2.new(1, 0, 0, 210)
+btnGrid.Position = UDim2.new(0, 0, 0, 68)
+btnGrid.BackgroundTransparency = 1
+btnGrid.Parent = playersFrame
+local gridLayout = Instance.new("UIGridLayout")
+gridLayout.CellSize = UDim2.new(0.48, 0, 0, 40)
+gridLayout.CellPadding = UDim2.new(0.04, 0, 0, 8)
+gridLayout.Parent = btnGrid
+
+local playerActions = {
+    {text = "👟 Kick", color = Color3.fromRGB(220, 80, 60)},
+    {text = "🚫 Ban", color = Color3.fromRGB(180, 40, 40)},
+    {text = "✨ God Mode", color = Color3.fromRGB(255, 160, 0)},
+    {text = "💀 Kill", color = Color3.fromRGB(120, 20, 20)},
+    {text = "🔮 Teleport to Me", color = Color3.fromRGB(100, 60, 220)},
+    {text = "🌀 Teleport to Player", color = Color3.fromRGB(60, 100, 220)},
+    {text = "💸 Give Cash", color = Color3.fromRGB(30, 160, 100)},
+    {text = "🛡 Freeze", color = Color3.fromRGB(0, 140, 200)},
+}
+
+for _, info in ipairs(playerActions) do
+    local btn = makeButton(btnGrid, info.text, info.color)
+    btn.MouseButton1Click:Connect(function()
+        local name = playerInput.Text
+        if name == "" then
+            notify("⚠ กรุณาใส่ชื่อผู้เล่น", Color3.fromRGB(220, 120, 0))
+            return
+        end
+        notify("✔ " .. info.text:match("[%a%s]+$"):gsub("^%s+","") .. " → " .. name)
+        -- TODO: ส่ง RemoteEvent ไปยัง Server ที่นี่
+        -- game.ReplicatedStorage.AdminRemote:FireServer(info.text, name)
+    end)
+end
+
+-- =============================================
+-- TAB 2: World
+-- =============================================
+local worldFrame = createTabFrame()
+
+makeLabel(worldFrame, "สภาพแวดล้อม", UDim2.new(0, 0, 0, 0))
+
+local worldBtnGrid = Instance.new("Frame")
+worldBtnGrid.Size = UDim2.new(1, 0, 0, 180)
+worldBtnGrid.Position = UDim2.new(0, 0, 0, 28)
+worldBtnGrid.BackgroundTransparency = 1
+worldBtnGrid.Parent = worldFrame
+local wgl = Instance.new("UIGridLayout")
+wgl.CellSize = UDim2.new(0.48, 0, 0, 40)
+wgl.CellPadding = UDim2.new(0.04, 0, 0, 8)
+wgl.Parent = worldBtnGrid
+
+local worldActions = {
+    {text = "🌙 Night", color = Color3.fromRGB(30, 40, 100)},
+    {text = "☀️ Day", color = Color3.fromRGB(220, 160, 0)},
+    {text = "🌧 Rain", color = Color3.fromRGB(50, 90, 150)},
+    {text = "⛅ Fog", color = Color3.fromRGB(100, 120, 140)},
+    {text = "🗺 Reset Map", color = Color3.fromRGB(180, 60, 0)},
+    {text = "🔇 Mute All", color = Color3.fromRGB(80, 80, 80)},
+}
+
+for _, info in ipairs(worldActions) do
+    local btn = makeButton(worldBtnGrid, info.text, info.color)
+    btn.MouseButton1Click:Connect(function()
+        notify("✔ " .. info.text)
+        -- TODO: FireServer
+    end)
+end
+
+makeLabel(worldFrame, "Game Speed", UDim2.new(0, 0, 0, 224))
+local speedInput = makeInput(worldFrame, "1 = ปกติ, 0.5 = ช้า, 2 = เร็ว", UDim2.new(0, 0, 0, 248))
+
+local setSpeedBtn = makeButton(worldFrame, "⚡ ตั้ง Speed", Color3.fromRGB(0, 180, 255), UDim2.new(0, 0, 0, 294), UDim2.new(0.5, -4, 0, 36))
+setSpeedBtn.MouseButton1Click:Connect(function()
+    local spd = tonumber(speedInput.Text)
+    if spd then
+        game:GetService("RunService"):SetRobloxGuiFocused(false)
+        notify("✔ Speed → " .. spd)
+        -- TODO: FireServer("setspeed", spd)
+    else
+        notify("⚠ กรุณาใส่ตัวเลข", Color3.fromRGB(220, 120, 0))
+    end
+end)
+
+-- =============================================
+-- TAB 3: Tools
+-- =============================================
+local toolsFrame = createTabFrame()
+
+makeLabel(toolsFrame, "เครื่องมือ Admin", UDim2.new(0, 0, 0, 0))
+
+local toolGrid = Instance.new("Frame")
+toolGrid.Size = UDim2.new(1, 0, 0, 300)
+toolGrid.Position = UDim2.new(0, 0, 0, 28)
+toolGrid.BackgroundTransparency = 1
+toolGrid.Parent = toolsFrame
+local tgl = Instance.new("UIGridLayout")
+tgl.CellSize = UDim2.new(0.48, 0, 0, 40)
+tgl.CellPadding = UDim2.new(0.04, 0, 0, 8)
+tgl.Parent = toolGrid
+
+local toolActions = {
+    {text = "🏃 Infinite Jump", color = Color3.fromRGB(60, 160, 60)},
+    {text = "🦅 Fly Mode", color = Color3.fromRGB(0, 160, 220)},
+    {text = "🔦 ESP", color = Color3.fromRGB(200, 100, 0)},
+    {text = "💥 Noclip", color = Color3.fromRGB(180, 0, 180)},
+    {text = "🔫 Give All Tools", color = Color3.fromRGB(100, 50, 0)},
+    {text = "🌐 Server Hop", color = Color3.fromRGB(20, 140, 160)},
+}
+
+local toggleStates = {}
+for _, info in ipairs(toolActions) do
+    local btn = makeButton(toolGrid, info.text, info.color)
+    toggleStates[btn] = false
+    btn.MouseButton1Click:Connect(function()
+        toggleStates[btn] = not toggleStates[btn]
+        if toggleStates[btn] then
+            btn.BackgroundColor3 = Color3.fromRGB(0, 220, 120)
+            btn.Text = "✔ " .. info.text
+        else
+            btn.BackgroundColor3 = info.color
+            btn.Text = info.text
+        end
+        notify((toggleStates[btn] and "✔ เปิด " or "✖ ปิด ") .. info.text:match("[%a%s]+$"):gsub("^%s+",""))
+        -- TODO: FireServer
+    end)
+end
+
+-- =============================================
+-- TAB 4: Logs
+-- =============================================
+local logsFrame = createTabFrame()
+
+makeLabel(logsFrame, "📋 บันทึกกิจกรรม", UDim2.new(0, 0, 0, 0))
+
+local logBox = Instance.new("ScrollingFrame")
+logBox.Size = UDim2.new(1, 0, 1, -60)
+logBox.Position = UDim2.new(0, 0, 0, 28)
+logBox.BackgroundColor3 = Color3.fromRGB(8, 12, 24)
+logBox.BorderSizePixel = 0
+logBox.ScrollBarThickness = 4
+logBox.ScrollBarImageColor3 = Color3.fromRGB(0, 180, 255)
+logBox.Parent = logsFrame
+local logCorner = Instance.new("UICorner"); logCorner.CornerRadius = UDim.new(0, 8); logCorner.Parent = logBox
+local logLayout = Instance.new("UIListLayout"); logLayout.Parent = logBox
+
+local logCount = 0
+local function addLog(msg)
+    logCount += 1
+    local lbl = Instance.new("TextLabel")
+    lbl.Text = "[" .. os.date("%H:%M:%S") .. "] " .. msg
+    lbl.Size = UDim2.new(1, -12, 0, 22)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(120, 200, 140)
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Code
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = logBox
+    local pad = Instance.new("UIPadding"); pad.PaddingLeft = UDim.new(0, 8); pad.Parent = lbl
+    logBox.CanvasSize = UDim2.new(0, 0, 0, logLayout.AbsoluteContentSize.Y)
+    logBox.CanvasPosition = Vector2.new(0, logLayout.AbsoluteContentSize.Y)
+end
+
+local clearLogsBtn = makeButton(logsFrame, "🗑 ล้าง Logs", Color3.fromRGB(180, 40, 40), UDim2.new(0, 0, 1, -28), UDim2.new(1, 0, 0, 28))
+clearLogsBtn.MouseButton1Click:Connect(function()
+    for _, v in ipairs(logBox:GetChildren()) do
+        if v:IsA("TextLabel") then v:Destroy() end
+    end
+    addLog("ล้าง logs แล้ว")
+end)
+
+-- เพิ่ม log เริ่มต้น
+addLog("Admin Panel เปิดแล้ว — ยินดีต้อนรับ " .. player.Name)
+
+-- =============================================
+-- สร้าง Tab Buttons
+-- =============================================
+local activeTab = nil
+local tabFrameList = {playersFrame, worldFrame, toolsFrame, logsFrame}
+local tabIcons = {"👥", "🌍", "🔧", "📋"}
+
+local function switchTab(idx)
+    for i, f in ipairs(tabFrameList) do
+        f.Visible = (i == idx)
+    end
+    for i, t in ipairs(tabs) do
+        if i == idx then
+            TweenService:Create(t, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(0, 180, 255)}):Play()
+            t.TextColor3 = Color3.new(1, 1, 1)
+        else
+            TweenService:Create(t, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(18, 24, 42)}):Play()
+            t.TextColor3 = Color3.fromRGB(120, 160, 210)
+        end
+    end
+    activeTab = idx
+end
+
+for i, name in ipairs(tabNames) do
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Text = tabIcons[i] .. " " .. name
+    tabBtn.Size = UDim2.new(0, 112, 1, 0)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(18, 24, 42)
+    tabBtn.TextColor3 = Color3.fromRGB(120, 160, 210)
+    tabBtn.TextSize = 13
+    tabBtn.Font = Enum.Font.GothamSemibold
+    tabBtn.BorderSizePixel = 0
+    tabBtn.AutoButtonColor = false
+    tabBtn.Parent = TabsBar
+    local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(0, 8); tc.Parent = tabBtn
+    tabs[i] = tabBtn
+    tabBtn.MouseButton1Click:Connect(function()
+        switchTab(i)
+        addLog("เปิดแท็บ: " .. name)
+    end)
+end
+
+switchTab(1)
+
+-- =============================================
+-- Toggle GUI (RightCtrl)
+-- =============================================
+local guiOpen = false
+
+local function toggleGui()
+    guiOpen = not guiOpen
+    if guiOpen then
+        MainFrame.Visible = true
+        MainFrame.Size = UDim2.new(0, 520, 0, 0)
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 520, 0, 440)}):Play()
+        addLog("เปิด Admin Panel")
+    else
+        TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+            {Size = UDim2.new(0, 520, 0, 0)}):Play()
+        task.delay(0.22, function() MainFrame.Visible = false end)
+        addLog("ปิด Admin Panel")
+    end
+end
+
+CloseBtn.MouseButton1Click:Connect(toggleGui)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == ADMIN_KEY then
+        toggleGui()
+    end
+end)
+
+
+-- =============================================
+-- Neon pulse animation บน border
+-- =============================================
+task.spawn(function()
+    local t = 0
+    while true do
+        t += 0.05
+        local alpha = (math.sin(t) + 1) / 2
+        UIStroke.Color = Color3.fromRGB(
+            math.floor(0 + alpha * 0),
+            math.floor(140 + alpha * 80),
+            math.floor(200 + alpha * 55)
+        )
+        UIStroke.Thickness = 1.5 + alpha * 1.2
+        task.wait(0.03)
+    end
+end)
+
+-- =============================================
+-- แจ้งเตือนเมื่อเริ่มต้น
+-- =============================================
+task.delay(0.5, function()
+    notify("⚡ Admin Panel โหลดแล้ว — กด RightCtrl เพื่อเปิด")
+end)
+
+print("[AdminUI] โหลดสำเร็จ สำหรับ: " .. player.Name)
